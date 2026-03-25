@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Send, CheckCircle } from 'lucide-react'
 import type { Flavor, UnitType, StockMovement } from '@/data/stockData'
-import { colaboradores, generateMovementId } from '@/data/stockData'
+import { generateMovementId } from '@/data/stockData'
 
 interface LineItem {
   id: number
@@ -12,10 +12,11 @@ interface LineItem {
 
 interface StockExitFormProps {
   flavors: Flavor[]
+  colaboradores: string[]
   onSubmit: (movements: StockMovement[]) => void
 }
 
-export function StockExitForm({ flavors, onSubmit }: StockExitFormProps) {
+export function StockExitForm({ flavors, colaboradores, onSubmit }: StockExitFormProps) {
   const [responsavel, setResponsavel] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { id: 1, saborId: '', quantidade: 1, unidade: 'Balde' },

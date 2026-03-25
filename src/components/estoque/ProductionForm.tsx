@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Factory, CheckCircle } from 'lucide-react'
 import type { Flavor, UnitType, StockMovement } from '@/data/stockData'
-import { colaboradores, generateMovementId } from '@/data/stockData'
+import { generateMovementId } from '@/data/stockData'
 
 interface LineItem {
   id: number
@@ -12,10 +12,11 @@ interface LineItem {
 
 interface ProductionFormProps {
   flavors: Flavor[]
+  colaboradores: string[]
   onSubmit: (movements: StockMovement[]) => void
 }
 
-export function ProductionForm({ flavors, onSubmit }: ProductionFormProps) {
+export function ProductionForm({ flavors, colaboradores, onSubmit }: ProductionFormProps) {
   const [responsavel, setResponsavel] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { id: 1, saborId: '', quantidade: 1, unidade: 'Balde' },
