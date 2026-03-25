@@ -224,6 +224,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
   const [importResult, setImportResult] = useState<{ success: number; errors: number }>({ success: 0, errors: 0 })
   const [error, setError] = useState('')
   const [showHelp, setShowHelp] = useState(false)
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'matched' | 'unmatched' | 'error'>('all')
 
   const activeFlavors = useMemo(
     () => flavors.filter(f => f.status === 'ativo'),
@@ -548,20 +549,44 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
         {/* Step 2: Preview */}
         {step === 'preview' && (
           <div className="space-y-4">
-            {/* Summary */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-green-50 border border-green-100 rounded-lg p-3 text-center">
+            {/* Summary — clicavel para filtrar */}
+            <div className="grid grid-cols-4 gap-3">
+              <button
+                onClick={() => setPreviewFilter('all')}
+                className={`rounded-lg p-3 text-center transition-all border ${
+                  previewFilter === 'all' ? 'ring-2 ring-gray-400 border-gray-300 bg-gray-50' : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
+                }`}
+              >
+                <p className="text-2xl font-bold text-gray-700">{matchedRows.length}</p>
+                <p className="text-xs text-gray-500">Total</p>
+              </button>
+              <button
+                onClick={() => setPreviewFilter('matched')}
+                className={`rounded-lg p-3 text-center transition-all border ${
+                  previewFilter === 'matched' ? 'ring-2 ring-green-400 border-green-300 bg-green-50' : 'border-green-100 bg-green-50/50 hover:bg-green-50'
+                }`}
+              >
                 <p className="text-2xl font-bold text-green-700">{validRows.length}</p>
                 <p className="text-xs text-green-600">Reconhecidos</p>
-              </div>
-              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
+              </button>
+              <button
+                onClick={() => setPreviewFilter('unmatched')}
+                className={`rounded-lg p-3 text-center transition-all border ${
+                  previewFilter === 'unmatched' ? 'ring-2 ring-amber-400 border-amber-300 bg-amber-50' : 'border-amber-100 bg-amber-50/50 hover:bg-amber-50'
+                }`}
+              >
                 <p className="text-2xl font-bold text-amber-700">{unmatchedRows.length}</p>
                 <p className="text-xs text-amber-600">Nao encontrados</p>
-              </div>
-              <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
+              </button>
+              <button
+                onClick={() => setPreviewFilter('error')}
+                className={`rounded-lg p-3 text-center transition-all border ${
+                  previewFilter === 'error' ? 'ring-2 ring-red-400 border-red-300 bg-red-50' : 'border-red-100 bg-red-50/50 hover:bg-red-50'
+                }`}
+              >
                 <p className="text-2xl font-bold text-red-700">{errorRows.length}</p>
                 <p className="text-xs text-red-600">Com erro</p>
-              </div>
+              </button>
             </div>
 
             {/* Table */}
@@ -582,7 +607,10 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {matchedRows.map((row, i) => (
+                    {matchedRows
+                      .map((row, i) => ({ row, originalIndex: i }))
+                      .filter(({ row }) => previewFilter === 'all' || row.status === previewFilter)
+                      .map(({ row, originalIndex: i }) => (
                       <tr key={i} className={row.status === 'error' ? 'bg-red-50/50' : row.status === 'unmatched' ? 'bg-amber-50/50' : ''}>
                         <td className="px-3 py-2">
                           {row.status === 'matched' && <CheckCircle size={16} className="text-green-500" />}
@@ -640,6 +668,13 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                         </td>
                       </tr>
                     ))}
+                    {previewFilter !== 'all' && matchedRows.filter(r => r.status === previewFilter).length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
+                          Nenhum item neste filtro
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
