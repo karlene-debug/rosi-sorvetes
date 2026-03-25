@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff } from 'lucide-react'
+import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
@@ -8,11 +8,12 @@ import { StockMovements } from './StockMovements'
 import { FlavorManager } from './FlavorManager'
 import { ColaboradorManager } from './ColaboradorManager'
 import { InventoryModule } from './InventoryModule'
+import { DataImportTool } from './DataImportTool'
 import type { Flavor, StockMovement, Colaborador, InventoryCount } from '@/data/stockData'
 import { initialFlavors, initialMovements, initialColaboradores, initialInventories, getActiveColaboradores } from '@/data/stockData'
 import * as db from '@/lib/database'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'sabores' | 'colaboradores'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'sabores' | 'colaboradores' | 'importar'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
@@ -20,6 +21,7 @@ const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'producao', label: 'Producao', icon: <Factory size={16} /> },
   { id: 'inventario', label: 'Inventario', icon: <ClipboardCheck size={16} /> },
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
+  { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} /> },
   { id: 'sabores', label: 'Sabores', icon: <IceCream size={16} /> },
   { id: 'colaboradores', label: 'Equipe', icon: <Users size={16} /> },
 ]
@@ -232,6 +234,13 @@ export function EstoqueSection() {
       )}
       {activeTab === 'historico' && (
         <StockMovements movements={movements} />
+      )}
+      {activeTab === 'importar' && (
+        <DataImportTool
+          flavors={flavors}
+          useSupabase={useSupabase}
+          onImportComplete={loadData}
+        />
       )}
       {activeTab === 'sabores' && (
         <FlavorManager
