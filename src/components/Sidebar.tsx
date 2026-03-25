@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutDashboard, TrendingUp, Users, Package, CreditCard, Menu, X, IceCream } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Users, Package, CreditCard, Menu, X, IceCream, Warehouse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -10,6 +10,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', id: 'dashboard' },
+  { icon: <Warehouse size={20} />, label: 'Estoque', id: 'estoque' },
   { icon: <TrendingUp size={20} />, label: 'Financeiro', id: 'financeiro' },
   { icon: <Users size={20} />, label: 'Fornecedores', id: 'fornecedores' },
   { icon: <Package size={20} />, label: 'Custos Fixos', id: 'custos' },

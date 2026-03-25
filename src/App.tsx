@@ -5,6 +5,7 @@ import { RevenueChart } from '@/components/RevenueChart'
 import { SuppliersTable } from '@/components/SuppliersTable'
 import { FixedCosts } from '@/components/FixedCosts'
 import { AccountsPayable } from '@/components/AccountsPayable'
+import { EstoqueSection } from '@/components/estoque/EstoqueSection'
 import { Bell, Search, IceCream } from 'lucide-react'
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
 
   const sectionTitles: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard', subtitle: 'Visão geral financeira de Março 2025' },
+    estoque: { title: 'Estoque de Sorvetes', subtitle: 'Controle de produção, saídas e saldo por sabor' },
     financeiro: { title: 'Financeiro', subtitle: 'Receitas, despesas e análise de performance' },
     fornecedores: { title: 'Fornecedores', subtitle: 'Gestão de pagamentos e parceiros' },
     custos: { title: 'Custos Fixos', subtitle: 'Despesas recorrentes mensais' },
@@ -70,6 +72,11 @@ function App() {
                 <SuppliersTable />
               )}
             </>
+          )}
+
+          {/* Estoque */}
+          {activeSection === 'estoque' && (
+            <EstoqueSection />
           )}
 
           {/* Fornecedores */}
