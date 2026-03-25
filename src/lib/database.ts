@@ -196,6 +196,41 @@ export async function insertMovimentacoes(movements: {
   return (data as DbMovimentacao[]).map(dbToMovement)
 }
 
+// Importacao em lote com data customizada (para dados historicos)
+export async function insertMovimentacoesImport(movements: {
+  sabor_id: string
+  quantidade: number
+  unidade: string
+  tipo: string
+  responsavel: string
+  data: string
+  observacao?: string
+}[]): Promise<number> {
+  // Insere em lotes de 500 para evitar limite do Supabase
+  const BATCH_SIZE = 500
+  let totalInserted = 0
+
+  for (let i = 0; i < movements.length; i += BATCH_SIZE) {
+    const batch = movements.slice(i, i + BATCH_SIZE)
+    const { error } = await supabase
+      .from('movimentacoes')
+      .insert(batch.map(m => ({
+        sabor_id: m.sabor_id,
+        quantidade: m.quantidade,
+        unidade: m.unidade,
+        tipo: m.tipo,
+        responsavel: m.responsavel,
+        data: m.data,
+        origem: 'importado' as const,
+        observacao: m.observacao || null,
+      })))
+    if (error) throw error
+    totalInserted += batch.length
+  }
+
+  return totalInserted
+}
+
 // ============================================
 // INVENTARIOS
 // ============================================
