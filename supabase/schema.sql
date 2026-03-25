@@ -85,7 +85,23 @@ INSERT INTO sabores (nome, categoria, unidades) VALUES
   -- Montagem Massa
   ('Acai / Leite Ninho', 'montagem_massa', '{"Balde"}'),
   ('Charge', 'montagem_massa', '{"Balde"}'),
-  ('Nata / Pave', 'montagem_massa', '{"Balde"}');
+  ('Nata / Pave', 'montagem_massa', '{"Balde"}'),
+  ('Nutella (Massa)', 'montagem_massa', '{"Balde"}'),
+  ('Sorvete de Bolo', 'montagem_massa', '{"Balde"}'),
+  ('Pave', 'montagem_massa', '{"Balde"}'),
+  -- Novos tradicionais (identificados na planilha)
+  ('Abacaxi sem Vinho', 'tradicional', '{"Balde"}'),
+  ('Acai com Banana', 'tradicional', '{"Balde"}'),
+  ('Cafe', 'tradicional', '{"Balde"}'),
+  ('Cafe com Avela', 'especial', '{"Balde"}'),
+  ('Iogurte', 'tradicional', '{"Balde"}'),
+  ('Iogurte Grego', 'especial', '{"Balde"}'),
+  ('Iogurte com Frutas Silvestres', 'especial', '{"Balde"}'),
+  ('Iogurte com Nutella', 'especial', '{"Balde"}'),
+  -- Novos zero acucar
+  ('Zero Acucar - Amendoim', 'zero_acucar', '{"Balde"}'),
+  ('Zero Acucar - Iogurte com Frutas Silvestres', 'zero_acucar', '{"Balde"}'),
+  ('Zero Acucar - Iogurte', 'zero_acucar', '{"Balde"}');
 
 -- ============================================
 -- 3. MOVIMENTACOES DE ESTOQUE
@@ -97,6 +113,7 @@ CREATE TABLE movimentacoes (
   quantidade INTEGER NOT NULL CHECK (quantidade > 0),
   unidade TEXT NOT NULL CHECK (unidade IN ('Balde', 'Caixa de 5 L', 'Pote de Creme')),
   tipo TEXT NOT NULL CHECK (tipo IN ('saida', 'producao', 'ajuste')),
+  destino TEXT CHECK (destino IN ('balcao', 'montagem_massa')),
   responsavel TEXT NOT NULL,
   origem TEXT NOT NULL DEFAULT 'plataforma' CHECK (origem IN ('plataforma', 'importado')),
   observacao TEXT

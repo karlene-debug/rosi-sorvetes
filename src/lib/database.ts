@@ -29,6 +29,7 @@ interface DbMovimentacao {
   quantidade: number
   unidade: string
   tipo: string
+  destino: string | null
   responsavel: string
   origem: string
   observacao: string | null
@@ -87,6 +88,7 @@ function dbToMovement(db: DbMovimentacao): StockMovement {
     quantidade: db.quantidade,
     unidade: db.unidade as StockMovement['unidade'],
     tipo: db.tipo as StockMovement['tipo'],
+    destino: (db.destino as StockMovement['destino']) || undefined,
     responsavel: db.responsavel,
     origem: db.origem as StockMovement['origem'],
     observacao: db.observacao || undefined,
@@ -202,6 +204,7 @@ export async function insertMovimentacoesImport(movements: {
   quantidade: number
   unidade: string
   tipo: string
+  destino?: string
   responsavel: string
   data: string
   observacao?: string
@@ -219,6 +222,7 @@ export async function insertMovimentacoesImport(movements: {
         quantidade: m.quantidade,
         unidade: m.unidade,
         tipo: m.tipo,
+        destino: m.destino || null,
         responsavel: m.responsavel,
         data: m.data,
         origem: 'importado' as const,

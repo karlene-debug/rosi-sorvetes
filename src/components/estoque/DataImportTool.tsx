@@ -13,6 +13,7 @@ interface ParsedRow {
   quantity: number
   unit: string
   type: 'producao' | 'saida'
+  destino?: 'balcao' | 'montagem_massa'
   responsible: string
 }
 
@@ -84,32 +85,116 @@ function parseDate(raw: string): string | null {
   return null
 }
 
+// Mapa de aliases: nomes que vem do Google Sheets → nome no sistema
+const FLAVOR_ALIASES: Record<string, string> = {
+  // Abreviacoes comuns
+  'iogurte c/frutas verm': 'iogurte c/ frutas vermelhas',
+  'iogurte c/ frutas verm': 'iogurte c/ frutas vermelhas',
+  'iogurte c/frutas vermelhas': 'iogurte c/ frutas vermelhas',
+  'iogurte com frutas vermelhas': 'iogurte c/ frutas vermelhas',
+  'iogurte s/recheio': 'iogurte s/ recheio',
+  'iogurte sem recheio': 'iogurte s/ recheio',
+  'mousse c amendoa': 'mousse choc. c/ amendoa',
+  'mousse c/ amendoa': 'mousse choc. c/ amendoa',
+  'mousse de chocolate com amendoas': 'mousse choc. c/ amendoa',
+  'musse de chocolate com amendoas': 'mousse choc. c/ amendoa',
+  'mousse choc. c/ amendoa': 'mousse choc. c/ amendoa',
+  'mousse maracuja': 'mousse maracuja',
+  'mousse de maracuja': 'mousse maracuja',
+  // Variantes de escrita
+  'folhado doce de leite': 'folhado doce de leite',
+  'passas ao rum': 'passas ao rum',
+  'merengue de morango': 'merengue de morango',
+  'sonho de moca': 'sonho de moca',
+  'torta de limao': 'torta de limao',
+  'leite ninho trufado': 'leite ninho trufado',
+  'leite n.trufado': 'leite ninho trufado',
+  'leite n. trufado': 'leite ninho trufado',
+  'blue ice': 'blue ice',
+  // Montagem caixa
+  'chocolate com laka': 'chocolate com laka',
+  'sensacao com flocos': 'sensacao com flocos',
+  'ferrero rocher/leite ninho trufado': 'ferrero rocher / leite ninho trufado',
+  'ferrero rocher / leite ninho trufado': 'ferrero rocher / leite ninho trufado',
+  'iogurte com frutas vermelhas/leite ninho trufado': 'iogurte frutas verm. / leite ninho trufado',
+  'iogurte frutas verm./leite ninho trufado': 'iogurte frutas verm. / leite ninho trufado',
+  'iogurte frutas verm. / leite ninho trufado': 'iogurte frutas verm. / leite ninho trufado',
+  // Montagem massa
+  'acai/leite ninho': 'acai / leite ninho',
+  'acai / leite ninho': 'acai / leite ninho',
+  'nata/pave': 'nata / pave',
+  'nata / pave': 'nata / pave',
+  // Zero acucar variantes
+  'zero acucar - chocolate': 'zero acucar - chocolate',
+  'zero acucar chocolate': 'zero acucar - chocolate',
+  'zero acucar - morango': 'zero acucar - morango',
+  'zero acucar morango': 'zero acucar - morango',
+  'zero acucar - torta de limao': 'zero acucar - torta de limao',
+  'zero acucar torta de limao': 'zero acucar - torta de limao',
+  'zero acucar - mousse de maracuja': 'zero acucar - mousse de maracuja',
+  'zero acucar mousse de maracuja': 'zero acucar - mousse de maracuja',
+  'amendoim zero': 'zero acucar - amendoim',
+  'zero acucar - amendoim': 'zero acucar - amendoim',
+  'zero acucar iogurte com frutas silvestres': 'zero acucar - iogurte com frutas silvestres',
+  'zero acucar - iogurte com frutas silvestres': 'zero acucar - iogurte com frutas silvestres',
+  'iogurte 0%': 'zero acucar - iogurte',
+  // Outros nomes comuns
+  'pave': 'pave',
+  'bolo de sorvete': 'sorvete de bolo',
+  'sorvete de bolo': 'sorvete de bolo',
+  'abacaxi sem vinho': 'abacaxi sem vinho',
+  'acai com banana': 'acai com banana',
+  'cafe': 'cafe',
+  'cafe com avela': 'cafe com avela',
+  'iogurte grego': 'iogurte grego',
+  'iogurte com frutas silvestres': 'iogurte com frutas silvestres',
+  'iogurte com nutella': 'iogurte com nutella',
+}
+
 function matchFlavor(name: string, flavors: Flavor[]): { id: string; nome: string } | null {
   const normalized = normalizeText(name)
   if (!normalized) return null
 
-  // Exact match (normalized)
+  // 1. Exact match (normalized, strips accents)
   for (const f of flavors) {
     if (normalizeText(f.nome) === normalized) return { id: f.id, nome: f.nome }
   }
 
-  // Partial match: CSV name contains flavor name or vice versa
-  for (const f of flavors) {
-    const fn = normalizeText(f.nome)
-    if (fn.includes(normalized) || normalized.includes(fn)) {
-      return { id: f.id, nome: f.nome }
+  // 2. Check alias table
+  const aliasTarget = FLAVOR_ALIASES[normalized]
+  if (aliasTarget) {
+    for (const f of flavors) {
+      if (normalizeText(f.nome) === aliasTarget) return { id: f.id, nome: f.nome }
     }
   }
 
-  // Word-based fuzzy: check if main words match
-  const words = normalized.split(/\s+/).filter(w => w.length > 2)
+  // 3. Normalize separators and retry: remove extra spaces, normalize / and -
+  const cleanNorm = normalized.replace(/\s*[\/]\s*/g, ' / ').replace(/\s+/g, ' ')
+  for (const f of flavors) {
+    const cleanF = normalizeText(f.nome).replace(/\s*[\/]\s*/g, ' / ').replace(/\s+/g, ' ')
+    if (cleanF === cleanNorm) return { id: f.id, nome: f.nome }
+  }
+
+  // 4. Partial match: CSV name contains flavor name or vice versa
+  for (const f of flavors) {
+    const fn = normalizeText(f.nome)
+    if (fn.length > 3 && normalized.length > 3) {
+      if (fn.includes(normalized) || normalized.includes(fn)) {
+        return { id: f.id, nome: f.nome }
+      }
+    }
+  }
+
+  // 5. Word-based fuzzy: check if main words match
+  const words = normalized.split(/[\s\/,]+/).filter(w => w.length > 2)
   if (words.length > 0) {
     let bestMatch: { id: string; nome: string; score: number } | null = null
     for (const f of flavors) {
       const fn = normalizeText(f.nome)
-      const matchedWords = words.filter(w => fn.includes(w))
-      const score = matchedWords.length / words.length
-      if (score >= 0.5 && (!bestMatch || score > bestMatch.score)) {
+      const fWords = fn.split(/[\s\/,]+/).filter(w => w.length > 2)
+      const matchedWords = words.filter(w => fWords.some(fw => fw.includes(w) || w.includes(fw)))
+      const score = matchedWords.length / Math.max(words.length, fWords.length)
+      if (score >= 0.6 && (!bestMatch || score > bestMatch.score)) {
         bestMatch = { id: f.id, nome: f.nome, score }
       }
     }
@@ -176,7 +261,10 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
       normalizeText(h).match(/tipo|type|movimento|moviment/)
     )
     const respCol = header.findIndex(h =>
-      normalizeText(h).match(/resp|responsavel|quem|colab/)
+      normalizeText(h).match(/resp|responsavel|quem|colab|^nome$/)
+    )
+    const destinoCol = header.findIndex(h =>
+      normalizeText(h).match(/destino|montagem|balcao|massa/)
     )
 
     if (flavorCol === -1) {
@@ -235,6 +323,21 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
       // Parse responsible
       const responsible = respCol >= 0 && cols[respCol] ? cols[respCol] : defaultResponsible
 
+      // Parse destino (balcao ou montagem_massa)
+      let destino: 'balcao' | 'montagem_massa' | undefined
+      if (destinoCol >= 0 && cols[destinoCol]) {
+        const d = normalizeText(cols[destinoCol])
+        if (d.includes('montagem') || d.includes('massa')) {
+          destino = 'montagem_massa'
+        } else if (d.includes('balcao') || d.includes('venda') || d.includes('loja')) {
+          destino = 'balcao'
+        }
+      }
+      // Se tipo é saida e nao tem destino explicito, default é balcao
+      if (type === 'saida' && !destino) {
+        destino = 'balcao'
+      }
+
       // Match flavor
       const match = matchFlavor(flavorName, activeFlavors)
 
@@ -244,6 +347,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
         quantity,
         unit,
         type,
+        destino,
         responsible,
         saborId: match?.id || null,
         matchedName: match?.nome || null,
@@ -292,6 +396,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
         quantidade: r.quantity,
         unidade: r.unit,
         tipo: r.type,
+        destino: r.destino,
         responsavel: r.responsible,
         data: r.date,
         observacao: 'Importado do Google Sheets',
@@ -357,11 +462,12 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
             <p className="mt-3 font-semibold mb-1">Colunas reconhecidas:</p>
             <ul className="text-xs space-y-0.5">
               <li><strong>Data</strong> — data, dia (DD/MM/AAAA ou AAAA-MM-DD)</li>
-              <li><strong>Sabor</strong> — sabor, produto, sorvete, nome</li>
+              <li><strong>Sabor</strong> — sabor, produto, sorvete</li>
               <li><strong>Quantidade</strong> — qtd, quantidade</li>
               <li><strong>Unidade</strong> — unidade, unid (Balde/Caixa/Pote)</li>
               <li><strong>Tipo</strong> — tipo, movimento (producao/saida)</li>
-              <li><strong>Responsavel</strong> — responsavel, quem</li>
+              <li><strong>Destino</strong> — montagem massa/balcao, destino</li>
+              <li><strong>Responsavel</strong> — responsavel, nome, quem</li>
             </ul>
             <p className="mt-3 text-xs text-blue-600">
               Minimo necessario: coluna de <strong>Sabor</strong>. As outras sao opcionais.
@@ -419,7 +525,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
               <textarea
                 value={rawText}
                 onChange={e => setRawText(e.target.value)}
-                placeholder={`Cole aqui os dados copiados do Google Sheets...\n\nExemplo:\nData\tSabor\tQtd\n01/03/2025\tChocolate\t3\n01/03/2025\tMorango\t2`}
+                placeholder={`Cole aqui os dados copiados do Google Sheets...\n\nExemplo:\nData;Sabor;Qtd;Unidade;Montagem Massa/Balcao;Nome\n01/03/2025;Chocolate;3;Balde;Balcao;Rose\n01/03/2025;Morango;2;Balde;Montagem Massa;Bernardo`}
                 rows={12}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-300 resize-y"
               />
@@ -471,6 +577,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500">Qtd</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Unid</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Tipo</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Destino</th>
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500">Acao</th>
                     </tr>
                   </thead>
@@ -512,6 +619,15 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                           }`}>
                             {row.type === 'producao' ? 'Producao' : 'Saida'}
                           </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {row.destino && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              row.destino === 'montagem_massa' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'
+                            }`}>
+                              {row.destino === 'montagem_massa' ? 'Montagem' : 'Balcao'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <button

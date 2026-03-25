@@ -17,6 +17,8 @@ export interface Flavor {
   criadoEm: string
 }
 
+export type DestinoType = 'balcao' | 'montagem_massa'
+
 export interface StockMovement {
   id: string
   data: string
@@ -25,6 +27,7 @@ export interface StockMovement {
   quantidade: number
   unidade: UnitType
   tipo: MovementType
+  destino?: DestinoType
   responsavel: string
   origem: MovementOrigin
   observacao?: string
@@ -142,6 +145,22 @@ export const initialFlavors: Flavor[] = [
   { id: 'flavor_47', nome: 'Acai / Leite Ninho', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
   { id: 'flavor_48', nome: 'Charge', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
   { id: 'flavor_49', nome: 'Nata / Pave', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_50', nome: 'Nutella (Massa)', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_51', nome: 'Sorvete de Bolo', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_52', nome: 'Pave', categoria: 'montagem_massa', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  // Novos tradicionais
+  { id: 'flavor_53', nome: 'Abacaxi sem Vinho', categoria: 'tradicional', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_54', nome: 'Acai com Banana', categoria: 'tradicional', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_55', nome: 'Cafe', categoria: 'tradicional', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_56', nome: 'Cafe com Avela', categoria: 'especial', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_57', nome: 'Iogurte', categoria: 'tradicional', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_58', nome: 'Iogurte Grego', categoria: 'especial', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_59', nome: 'Iogurte com Frutas Silvestres', categoria: 'especial', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_60', nome: 'Iogurte com Nutella', categoria: 'especial', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  // Novos zero acucar
+  { id: 'flavor_61', nome: 'Zero Acucar - Amendoim', categoria: 'zero_acucar', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_62', nome: 'Zero Acucar - Iogurte com Frutas Silvestres', categoria: 'zero_acucar', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'flavor_63', nome: 'Zero Acucar - Iogurte', categoria: 'zero_acucar', unidades: ['Balde'], status: 'ativo', criadoEm: '2024-01-01' },
 ]
 
 // ============================================
