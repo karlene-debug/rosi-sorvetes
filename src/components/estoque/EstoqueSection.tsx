@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
@@ -10,6 +10,7 @@ import { ColaboradorManager } from './ColaboradorManager'
 import { InventoryModule } from './InventoryModule'
 import type { Flavor, StockMovement, Colaborador, InventoryCount } from '@/data/stockData'
 import { initialFlavors, initialMovements, initialColaboradores, initialInventories, getActiveColaboradores } from '@/data/stockData'
+import * as db from '@/lib/database'
 
 type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'sabores' | 'colaboradores'
 
@@ -29,28 +30,112 @@ export function EstoqueSection() {
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements)
   const [colaboradores, setColaboradores] = useState<Colaborador[]>(initialColaboradores)
   const [inventories, setInventories] = useState<InventoryCount[]>(initialInventories)
+  const [loading, setLoading] = useState(true)
+  const [useSupabase, setUseSupabase] = useState(false)
+
+  // Tenta carregar dados do Supabase; se falhar, usa dados locais
+  const loadData = useCallback(async () => {
+    try {
+      const connected = await db.checkConnection()
+      if (!connected) {
+        setUseSupabase(false)
+        setLoading(false)
+        return
+      }
+      setUseSupabase(true)
+
+      const [sabores, colabs, movs, invs] = await Promise.all([
+        db.fetchSabores(),
+        db.fetchColaboradores(),
+        db.fetchMovimentacoes(),
+        db.fetchInventarios(),
+      ])
+
+      setFlavors(sabores.length > 0 ? sabores : initialFlavors)
+      setColaboradores(colabs.length > 0 ? colabs : initialColaboradores)
+      setMovements(movs.length > 0 ? movs : initialMovements)
+      setInventories(invs.length > 0 ? invs : initialInventories)
+    } catch {
+      setUseSupabase(false)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
 
   const activeNames = getActiveColaboradores(colaboradores)
 
-  const handleAddMovements = (newMovements: StockMovement[]) => {
-    setMovements(prev => [...prev, ...newMovements])
+  // === HANDLERS COM SUPABASE ===
+
+  const handleAddMovements = async (newMovements: StockMovement[]) => {
+    setMovements(prev => [...newMovements, ...prev])
+    if (useSupabase) {
+      try {
+        await db.insertMovimentacoes(newMovements.map(m => ({
+          sabor_id: m.saborId,
+          quantidade: m.quantidade,
+          unidade: m.unidade,
+          tipo: m.tipo,
+          responsavel: m.responsavel,
+        })))
+      } catch (err) {
+        console.error('Erro ao salvar movimentacao:', err)
+      }
+    }
   }
 
-  const handleAddFlavor = (flavor: Flavor) => {
+  const handleAddFlavor = async (flavor: Flavor) => {
+    if (useSupabase) {
+      try {
+        const saved = await db.insertSabor({
+          nome: flavor.nome,
+          categoria: flavor.categoria,
+          unidades: flavor.unidades,
+          status: flavor.status,
+        })
+        setFlavors(prev => [...prev, saved])
+        return
+      } catch (err) {
+        console.error('Erro ao salvar sabor:', err)
+      }
+    }
     setFlavors(prev => [...prev, flavor])
   }
 
-  const handleToggleFlavorStatus = (id: string) => {
+  const handleToggleFlavorStatus = async (id: string) => {
+    const flavor = flavors.find(f => f.id === id)
+    if (!flavor) return
+
     setFlavors(prev => prev.map(f =>
       f.id === id ? { ...f, status: f.status === 'ativo' ? 'inativo' : 'ativo' } : f
     ))
+    if (useSupabase) {
+      try {
+        await db.toggleSaborStatus(id, flavor.status)
+      } catch (err) {
+        console.error('Erro ao atualizar sabor:', err)
+      }
+    }
   }
 
-  const handleAddColaborador = (colaborador: Colaborador) => {
+  const handleAddColaborador = async (colaborador: Colaborador) => {
+    if (useSupabase) {
+      try {
+        const saved = await db.insertColaborador(colaborador.nome)
+        setColaboradores(prev => [...prev, saved])
+        return
+      } catch (err) {
+        console.error('Erro ao salvar colaborador:', err)
+      }
+    }
     setColaboradores(prev => [...prev, colaborador])
   }
 
-  const handleToggleColaboradorStatus = (id: string) => {
+  const handleToggleColaboradorStatus = async (id: string) => {
+    const colab = colaboradores.find(c => c.id === id)
+    if (!colab) return
+
     setColaboradores(prev => prev.map(c =>
       c.id === id ? {
         ...c,
@@ -58,14 +143,55 @@ export function EstoqueSection() {
         desativadoEm: c.status === 'ativo' ? new Date().toISOString().split('T')[0] : undefined,
       } : c
     ))
+    if (useSupabase) {
+      try {
+        await db.toggleColaboradorStatus(id, colab.status)
+      } catch (err) {
+        console.error('Erro ao atualizar colaborador:', err)
+      }
+    }
   }
 
-  const handleSaveInventory = (inventory: InventoryCount) => {
-    setInventories(prev => [...prev, inventory])
+  const handleSaveInventory = async (inventory: InventoryCount) => {
+    setInventories(prev => [inventory, ...prev])
+    if (useSupabase) {
+      try {
+        await db.insertInventario(
+          inventory.responsavel,
+          inventory.itens.map(i => ({
+            sabor_id: i.saborId,
+            unidade: i.unidade,
+            contagem: i.contagem,
+            esperado: i.esperado,
+            divergencia: i.divergencia,
+          })),
+          inventory.observacao,
+        )
+      } catch (err) {
+        console.error('Erro ao salvar inventario:', err)
+      }
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={32} className="text-[#E91E63] animate-spin" />
+        <span className="ml-3 text-gray-500 text-sm">Carregando dados...</span>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4">
+      {/* Connection status */}
+      {!useSupabase && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex items-center gap-2 text-xs text-amber-700">
+          <WifiOff size={14} />
+          Modo offline - dados locais (configure o Supabase para salvar permanentemente)
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white rounded-xl border border-gray-100 p-1.5 flex gap-1 overflow-x-auto">
         {tabs.map(tab => (

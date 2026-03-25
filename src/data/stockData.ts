@@ -161,8 +161,7 @@ export const initialColaboradores: Colaborador[] = [
   { id: 'colab_4', nome: 'Joao', status: 'ativo', criadoEm: '2024-01-01' },
   { id: 'colab_5', nome: 'Yago', status: 'ativo', criadoEm: '2024-01-01' },
   { id: 'colab_6', nome: 'Rosi', status: 'ativo', criadoEm: '2024-01-01' },
-  { id: 'colab_7', nome: 'Val', status: 'ativo', criadoEm: '2024-01-01' },
-  { id: 'colab_8', nome: 'Kenia', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_7', nome: 'Kenia', status: 'ativo', criadoEm: '2024-01-01' },
 ]
 
 // Manter compatibilidade - lista simples de nomes ativos

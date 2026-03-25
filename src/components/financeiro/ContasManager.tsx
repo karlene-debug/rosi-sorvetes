@@ -1,0 +1,217 @@
+import { useState } from 'react'
+import { Plus, X, CheckCircle, AlertTriangle, Clock, DollarSign } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { Conta, PlanoContas, Fornecedor, SituacaoConta } from '@/data/financeData'
+import { formatCurrency, formatDate, isOverdue, situacaoLabels, getMesAnoAtual } from '@/data/financeData'
+
+interface ContasManagerProps {
+  contas: Conta[]
+  planoContas: PlanoContas[]
+  fornecedores: Fornecedor[]
+  onAdd: (c: Omit<Conta, 'id'>) => void
+  onUpdateSituacao: (id: string, situacao: SituacaoConta) => void
+}
+
+export function ContasManager({ contas, planoContas, fornecedores, onAdd, onUpdateSituacao }: ContasManagerProps) {
+  const [showForm, setShowForm] = useState(false)
+  const [filterSituacao, setFilterSituacao] = useState<SituacaoConta | 'todos'>('todos')
+  const { mes, ano } = getMesAnoAtual()
+  const [mesFiltro, setMesFiltro] = useState(mes)
+  const [anoFiltro, setAnoFiltro] = useState(ano)
+
+  // Form state
+  const [descricao, setDescricao] = useState('')
+  const [valor, setValor] = useState('')
+  const [vencimento, setVencimento] = useState('')
+  const [planoId, setPlanoId] = useState('')
+  const [fornecedorId, setFornecedorId] = useState('')
+  const [tipoPagamento, setTipoPagamento] = useState('')
+  const [parcela, setParcela] = useState('')
+
+  const activePlano = planoContas.filter(p => p.status === 'ativo')
+  const activeFornecedores = fornecedores.filter(f => f.status === 'ativo')
+
+  // Atualizar atrasados
+  const contasProcessadas = contas.map(c => ({
+    ...c,
+    situacao: isOverdue(c.dataVencimento, c.situacao) ? 'atrasado' as SituacaoConta : c.situacao,
+  }))
+
+  const filtered = contasProcessadas.filter(c => {
+    if (filterSituacao !== 'todos' && c.situacao !== filterSituacao) return false
+    if (c.mesReferencia && c.mesReferencia !== mesFiltro) return false
+    if (c.anoReferencia && c.anoReferencia !== anoFiltro) return false
+    return true
+  }).sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
+
+  // KPIs
+  const contasMes = contasProcessadas.filter(c => c.mesReferencia === mesFiltro && c.anoReferencia === anoFiltro)
+  const totalPago = contasMes.filter(c => c.situacao === 'pago').reduce((s, c) => s + c.valor, 0)
+  const totalPendente = contasMes.filter(c => c.situacao === 'pendente').reduce((s, c) => s + c.valor, 0)
+  const totalAtrasado = contasMes.filter(c => c.situacao === 'atrasado').reduce((s, c) => s + c.valor, 0)
+  const totalMes = contasMes.filter(c => c.situacao !== 'cancelado').reduce((s, c) => s + c.valor, 0)
+
+  const handleAdd = () => {
+    if (!descricao.trim() || !valor || !vencimento) return
+    const plano = activePlano.find(p => p.id === planoId)
+    const forn = activeFornecedores.find(f => f.id === fornecedorId)
+    const vencDate = new Date(vencimento + 'T12:00:00')
+    onAdd({
+      descricao: descricao.trim(),
+      valor: parseFloat(valor),
+      dataVencimento: vencimento,
+      planoContasId: planoId || undefined,
+      planoContasNome: plano?.nome,
+      fornecedorId: fornecedorId || undefined,
+      fornecedorNome: forn?.nome,
+      tipoPagamento: tipoPagamento || undefined,
+      parcela: parcela || undefined,
+      situacao: 'pendente',
+      recorrente: false,
+      mesReferencia: vencDate.getMonth() + 1,
+      anoReferencia: vencDate.getFullYear(),
+      origem: 'plataforma',
+    })
+    setDescricao(''); setValor(''); setVencimento(''); setPlanoId(''); setFornecedorId('')
+    setTipoPagamento(''); setParcela('')
+    setShowForm(false)
+  }
+
+  const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign size={16} className="text-gray-400" />
+            <p className="text-xs text-gray-500">Total do mes</p>
+          </div>
+          <p className="text-xl font-bold text-gray-800">{formatCurrency(totalMes)}</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-2 mb-1">
+            <CheckCircle size={16} className="text-green-500" />
+            <p className="text-xs text-gray-500">Pago</p>
+          </div>
+          <p className="text-xl font-bold text-green-600">{formatCurrency(totalPago)}</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock size={16} className="text-amber-500" />
+            <p className="text-xs text-gray-500">Pendente</p>
+          </div>
+          <p className="text-xl font-bold text-amber-600">{formatCurrency(totalPendente)}</p>
+        </div>
+        <div className={cn('bg-white rounded-xl p-4 border', totalAtrasado > 0 ? 'border-red-200' : 'border-gray-100')}>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={16} className="text-red-500" />
+            <p className="text-xs text-gray-500">Atrasado</p>
+          </div>
+          <p className={cn('text-xl font-bold', totalAtrasado > 0 ? 'text-red-600' : 'text-gray-800')}>{formatCurrency(totalAtrasado)}</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="flex gap-2 items-center">
+            <button onClick={() => { if (mesFiltro === 1) { setMesFiltro(12); setAnoFiltro(anoFiltro - 1) } else setMesFiltro(mesFiltro - 1) }}
+              className="px-2 py-1 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">&lt;</button>
+            <span className="text-sm font-semibold text-gray-800 min-w-[100px] text-center">{meses[mesFiltro - 1]} / {anoFiltro}</span>
+            <button onClick={() => { if (mesFiltro === 12) { setMesFiltro(1); setAnoFiltro(anoFiltro + 1) } else setMesFiltro(mesFiltro + 1) }}
+              className="px-2 py-1 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">&gt;</button>
+            <select value={filterSituacao} onChange={e => setFilterSituacao(e.target.value as SituacaoConta | 'todos')}
+              className="ml-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none">
+              <option value="todos">Todas</option>
+              {Object.entries(situacaoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <button onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B]">
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Cancelar' : 'Nova Conta'}
+          </button>
+        </div>
+
+        {showForm && (
+          <div className="mt-4 p-4 bg-[#FCE4EC]/30 rounded-lg border border-[#F8BBD0]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <input type="text" placeholder="Descricao *" value={descricao} onChange={e => setDescricao(e.target.value)}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" autoFocus />
+              <input type="number" placeholder="Valor *" value={valor} onChange={e => setValor(e.target.value)} step="0.01" min="0"
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" />
+              <input type="date" value={vencimento} onChange={e => setVencimento(e.target.value)}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" />
+              <select value={planoId} onChange={e => setPlanoId(e.target.value)}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]">
+                <option value="">Plano de contas</option>
+                {activePlano.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+              <select value={fornecedorId} onChange={e => setFornecedorId(e.target.value)}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]">
+                <option value="">Fornecedor</option>
+                {activeFornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              <input type="text" placeholder="Parcela (ex: 1/3)" value={parcela} onChange={e => setParcela(e.target.value)}
+                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" />
+            </div>
+            <button onClick={handleAdd} className="mt-3 px-6 py-2 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B]">
+              Salvar
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3">Descricao</th>
+                <th className="text-right text-xs font-semibold text-gray-500 uppercase px-4 py-3">Valor</th>
+                <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3">Vencimento</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Plano</th>
+                <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3">Situacao</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-medium text-gray-800">{c.descricao}</span>
+                    {c.fornecedorNome && <p className="text-xs text-gray-400">{c.fornecedorNome}</p>}
+                    {c.parcela && <span className="text-xs text-gray-400 ml-1">({c.parcela})</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-gray-800">{formatCurrency(c.valor)}</td>
+                  <td className="px-4 py-3 text-center text-xs text-gray-500">{formatDate(c.dataVencimento)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 hidden md:table-cell">{c.planoContasNome || '-'}</td>
+                  <td className="px-4 py-3 text-center">
+                    {c.situacao === 'pago' ? (
+                      <span className="text-xs px-3 py-1 rounded-full bg-green-50 text-green-700 font-medium">Pago</span>
+                    ) : c.situacao === 'atrasado' ? (
+                      <button onClick={() => onUpdateSituacao(c.id, 'pago')}
+                        className="text-xs px-3 py-1 rounded-full bg-red-50 text-red-700 font-medium hover:bg-red-100 transition-colors">
+                        Atrasado - Pagar
+                      </button>
+                    ) : c.situacao === 'cancelado' ? (
+                      <span className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">Cancelado</span>
+                    ) : (
+                      <button onClick={() => onUpdateSituacao(c.id, 'pago')}
+                        className="text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-700 font-medium hover:bg-amber-100 transition-colors">
+                        Pendente - Pagar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && <div className="text-center py-8 text-gray-400 text-sm">Nenhuma conta encontrada neste periodo</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
