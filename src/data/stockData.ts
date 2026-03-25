@@ -30,6 +30,33 @@ export interface StockMovement {
   observacao?: string
 }
 
+export type ColaboradorStatus = 'ativo' | 'inativo'
+
+export interface Colaborador {
+  id: string
+  nome: string
+  status: ColaboradorStatus
+  criadoEm: string
+  desativadoEm?: string
+}
+
+export interface InventoryCount {
+  id: string
+  data: string
+  responsavel: string
+  itens: InventoryItem[]
+  observacao?: string
+}
+
+export interface InventoryItem {
+  saborId: string
+  sabor: string
+  unidade: UnitType
+  contagem: number
+  esperado: number
+  divergencia: number
+}
+
 export interface StockBalance {
   saborId: string
   sabor: string
@@ -121,8 +148,73 @@ export const initialFlavors: Flavor[] = [
 // COLABORADORES
 // ============================================
 
-export const colaboradores = [
-  'Rose', 'Bernardo', 'Valdirene', 'Joao', 'Yago', 'Rosi', 'Val', 'Kenia'
+let nextColaboradorId = 20
+
+export function generateColaboradorId(): string {
+  return `colab_${nextColaboradorId++}`
+}
+
+export const initialColaboradores: Colaborador[] = [
+  { id: 'colab_1', nome: 'Rose', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_2', nome: 'Bernardo', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_3', nome: 'Valdirene', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_4', nome: 'Joao', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_5', nome: 'Yago', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_6', nome: 'Rosi', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_7', nome: 'Val', status: 'ativo', criadoEm: '2024-01-01' },
+  { id: 'colab_8', nome: 'Kenia', status: 'ativo', criadoEm: '2024-01-01' },
+]
+
+// Manter compatibilidade - lista simples de nomes ativos
+export function getActiveColaboradores(colaboradores: Colaborador[]): string[] {
+  return colaboradores.filter(c => c.status === 'ativo').map(c => c.nome).sort()
+}
+
+// ============================================
+// INVENTARIOS
+// ============================================
+
+let nextInventoryId = 10
+
+export function generateInventoryId(): string {
+  return `inv_${nextInventoryId++}`
+}
+
+export const initialInventories: InventoryCount[] = [
+  {
+    id: 'inv_1',
+    data: '2024-12-15T09:00:00',
+    responsavel: 'Rosi',
+    itens: [
+      { saborId: 'flavor_6', sabor: 'Chocolate', unidade: 'Balde', contagem: 5, esperado: 7, divergencia: -2 },
+      { saborId: 'flavor_26', sabor: 'Morango', unidade: 'Balde', contagem: 3, esperado: 3, divergencia: 0 },
+      { saborId: 'flavor_30', sabor: 'Nutella', unidade: 'Balde', contagem: 2, esperado: 4, divergencia: -2 },
+      { saborId: 'flavor_10', sabor: 'Creme', unidade: 'Balde', contagem: 6, esperado: 6, divergencia: 0 },
+    ],
+    observacao: 'Inventario de fim de ano',
+  },
+  {
+    id: 'inv_2',
+    data: '2025-01-20T08:30:00',
+    responsavel: 'Valdirene',
+    itens: [
+      { saborId: 'flavor_6', sabor: 'Chocolate', unidade: 'Balde', contagem: 8, esperado: 8, divergencia: 0 },
+      { saborId: 'flavor_21', sabor: 'Leite Ninho Trufado', unidade: 'Balde', contagem: 4, esperado: 5, divergencia: -1 },
+      { saborId: 'flavor_13', sabor: 'Ferrero Rocher', unidade: 'Balde', contagem: 3, esperado: 3, divergencia: 0 },
+    ],
+    observacao: 'Inventario mensal janeiro',
+  },
+  {
+    id: 'inv_3',
+    data: '2025-02-18T09:15:00',
+    responsavel: 'Rosi',
+    itens: [
+      { saborId: 'flavor_6', sabor: 'Chocolate', unidade: 'Balde', contagem: 10, esperado: 10, divergencia: 0 },
+      { saborId: 'flavor_26', sabor: 'Morango', unidade: 'Balde', contagem: 5, esperado: 6, divergencia: -1 },
+      { saborId: 'flavor_14', sabor: 'Flocos', unidade: 'Balde', contagem: 7, esperado: 7, divergencia: 0 },
+    ],
+    observacao: 'Inventario mensal fevereiro',
+  },
 ]
 
 // ============================================
