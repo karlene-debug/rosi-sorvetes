@@ -2,22 +2,19 @@ import { useState } from 'react'
 import { Sidebar } from '@/components/Sidebar'
 import { KPICards } from '@/components/KPICards'
 import { RevenueChart } from '@/components/RevenueChart'
-import { SuppliersTable } from '@/components/SuppliersTable'
 import { FixedCosts } from '@/components/FixedCosts'
 import { AccountsPayable } from '@/components/AccountsPayable'
 import { EstoqueSection } from '@/components/estoque/EstoqueSection'
+import { FinanceiroSection } from '@/components/financeiro/FinanceiroSection'
 import { Bell, Search, IceCream } from 'lucide-react'
 
 function App() {
   const [activeSection, setActiveSection] = useState('dashboard')
 
   const sectionTitles: Record<string, { title: string; subtitle: string }> = {
-    dashboard: { title: 'Dashboard', subtitle: 'Visão geral financeira de Março 2025' },
-    estoque: { title: 'Estoque de Sorvetes', subtitle: 'Controle de produção, saídas e saldo por sabor' },
-    financeiro: { title: 'Financeiro', subtitle: 'Receitas, despesas e análise de performance' },
-    fornecedores: { title: 'Fornecedores', subtitle: 'Gestão de pagamentos e parceiros' },
-    custos: { title: 'Custos Fixos', subtitle: 'Despesas recorrentes mensais' },
-    contas: { title: 'Contas a Pagar', subtitle: 'Vencimentos e obrigações financeiras' },
+    dashboard: { title: 'Dashboard', subtitle: 'Visao geral do negocio' },
+    estoque: { title: 'Estoque de Sorvetes', subtitle: 'Controle de producao, saidas e saldo por sabor' },
+    financeiro: { title: 'Financeiro', subtitle: 'Contas a pagar, custos fixos, fornecedores e plano de contas' },
   }
 
   const current = sectionTitles[activeSection] || sectionTitles.dashboard
@@ -57,20 +54,15 @@ function App() {
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Dashboard or Financeiro */}
-          {(activeSection === 'dashboard' || activeSection === 'financeiro') && (
+          {/* Dashboard */}
+          {activeSection === 'dashboard' && (
             <>
               <KPICards />
               <RevenueChart />
-              {activeSection === 'dashboard' && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <FixedCosts />
-                  <AccountsPayable />
-                </div>
-              )}
-              {activeSection === 'financeiro' && (
-                <SuppliersTable />
-              )}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <FixedCosts />
+                <AccountsPayable />
+              </div>
             </>
           )}
 
@@ -79,26 +71,16 @@ function App() {
             <EstoqueSection />
           )}
 
-          {/* Fornecedores */}
-          {activeSection === 'fornecedores' && (
-            <SuppliersTable />
-          )}
-
-          {/* Custos Fixos */}
-          {activeSection === 'custos' && (
-            <FixedCosts />
-          )}
-
-          {/* Contas a Pagar */}
-          {activeSection === 'contas' && (
-            <AccountsPayable />
+          {/* Financeiro */}
+          {activeSection === 'financeiro' && (
+            <FinanceiroSection />
           )}
         </div>
 
         {/* Footer */}
         <footer className="px-6 py-4 border-t border-gray-100 mt-6">
           <p className="text-xs text-gray-400 text-center">
-            © 2025 Rosi Sorvetes Artesanal · Dashboard Financeiro · Todos os direitos reservados
+            © 2025 Rosi Sorvetes Artesanal · Plataforma de Gestao · Todos os direitos reservados
           </p>
         </footer>
       </main>
