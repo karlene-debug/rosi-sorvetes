@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, X, Loader2, HelpCircle } from 'lucide-react'
+import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, X, Loader2, HelpCircle, AlertCircle } from 'lucide-react'
 import type { Flavor } from '@/data/stockData'
 import * as db from '@/lib/database'
 
@@ -17,11 +17,17 @@ interface ParsedRow {
   responsible: string
 }
 
+interface RowWarning {
+  type: 'qty_high' | 'qty_very_high' | 'future_date' | 'duplicate' | 'qty_zero'
+  message: string
+}
+
 interface MatchedRow extends ParsedRow {
   saborId: string | null
   matchedName: string | null
   status: 'matched' | 'unmatched' | 'error'
   errorMsg?: string
+  warnings: RowWarning[]
 }
 
 type ImportStep = 'paste' | 'preview' | 'importing' | 'done'
@@ -224,7 +230,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
   const [importResult, setImportResult] = useState<{ success: number; errors: number }>({ success: 0, errors: 0 })
   const [error, setError] = useState('')
   const [showHelp, setShowHelp] = useState(false)
-  const [previewFilter, setPreviewFilter] = useState<'all' | 'matched' | 'unmatched' | 'error'>('all')
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'matched' | 'unmatched' | 'error' | 'warnings'>('all')
 
   const activeFlavors = useMemo(
     () => flavors.filter(f => f.status === 'ativo'),
@@ -298,6 +304,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
             matchedName: null,
             status: 'error',
             errorMsg: `Data invalida: "${cols[dateCol]}"`,
+            warnings: [],
           })
           continue
         }
@@ -342,6 +349,22 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
       // Match flavor
       const match = matchFlavor(flavorName, activeFlavors)
 
+      // Validacao: gerar warnings
+      const warnings: RowWarning[] = []
+
+      if (quantity === 0) {
+        warnings.push({ type: 'qty_zero', message: 'Quantidade zero' })
+      } else if (quantity > 50) {
+        warnings.push({ type: 'qty_very_high', message: `Quantidade muito alta: ${quantity} unidades. Possivel erro de digitacao?` })
+      } else if (quantity > 15) {
+        warnings.push({ type: 'qty_high', message: `Quantidade acima do normal: ${quantity} unidades` })
+      }
+
+      const now = new Date()
+      if (date && new Date(date) > now) {
+        warnings.push({ type: 'future_date', message: 'Data no futuro' })
+      }
+
       rows.push({
         date,
         flavor: flavorName,
@@ -353,7 +376,21 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
         saborId: match?.id || null,
         matchedName: match?.nome || null,
         status: match ? 'matched' : 'unmatched',
+        warnings,
       })
+    }
+
+    // Validacao pos-parse: detectar duplicatas (mesmo sabor + mesma data)
+    const seen = new Map<string, number[]>()
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].status === 'error') continue
+      const key = `${rows[i].saborId || rows[i].flavor}|${rows[i].date?.split('T')[0]}|${rows[i].type}`
+      const indices = seen.get(key) || []
+      if (indices.length > 0) {
+        rows[i].warnings.push({ type: 'duplicate', message: `Duplicado: mesmo sabor, data e tipo (linha ${indices[0] + 2})` })
+      }
+      indices.push(i)
+      seen.set(key, indices)
     }
 
     if (rows.length === 0) {
@@ -384,6 +421,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
   // IMPORT
   // ============================================
   const validRows = matchedRows.filter(r => r.status === 'matched')
+  const warningRows = matchedRows.filter(r => r.warnings.length > 0)
   const unmatchedRows = matchedRows.filter(r => r.status === 'unmatched')
   const errorRows = matchedRows.filter(r => r.status === 'error')
 
@@ -550,7 +588,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
         {step === 'preview' && (
           <div className="space-y-4">
             {/* Summary — clicavel para filtrar */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-2">
               <button
                 onClick={() => setPreviewFilter('all')}
                 className={`rounded-lg p-3 text-center transition-all border ${
@@ -568,6 +606,15 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
               >
                 <p className="text-2xl font-bold text-green-700">{validRows.length}</p>
                 <p className="text-xs text-green-600">Reconhecidos</p>
+              </button>
+              <button
+                onClick={() => setPreviewFilter('warnings')}
+                className={`rounded-lg p-3 text-center transition-all border ${
+                  previewFilter === 'warnings' ? 'ring-2 ring-orange-400 border-orange-300 bg-orange-50' : 'border-orange-100 bg-orange-50/50 hover:bg-orange-50'
+                }`}
+              >
+                <p className="text-2xl font-bold text-orange-600">{warningRows.length}</p>
+                <p className="text-xs text-orange-500">Alertas</p>
               </button>
               <button
                 onClick={() => setPreviewFilter('unmatched')}
@@ -609,13 +656,16 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                   <tbody className="divide-y divide-gray-100">
                     {matchedRows
                       .map((row, i) => ({ row, originalIndex: i }))
-                      .filter(({ row }) => previewFilter === 'all' || row.status === previewFilter)
+                      .filter(({ row }) => previewFilter === 'all' || (previewFilter === 'warnings' ? row.warnings.length > 0 : row.status === previewFilter))
                       .map(({ row, originalIndex: i }) => (
-                      <tr key={i} className={row.status === 'error' ? 'bg-red-50/50' : row.status === 'unmatched' ? 'bg-amber-50/50' : ''}>
+                      <tr key={i} className={row.status === 'error' ? 'bg-red-50/50' : row.status === 'unmatched' ? 'bg-amber-50/50' : row.warnings.length > 0 ? 'bg-orange-50/30' : ''}>
                         <td className="px-3 py-2">
-                          {row.status === 'matched' && <CheckCircle size={16} className="text-green-500" />}
-                          {row.status === 'unmatched' && <AlertTriangle size={16} className="text-amber-500" />}
-                          {row.status === 'error' && <X size={16} className="text-red-500" />}
+                          <div className="flex items-center gap-1">
+                            {row.status === 'matched' && row.warnings.length === 0 && <CheckCircle size={16} className="text-green-500" />}
+                            {row.status === 'matched' && row.warnings.length > 0 && <AlertCircle size={16} className="text-orange-500" />}
+                            {row.status === 'unmatched' && <AlertTriangle size={16} className="text-amber-500" />}
+                            {row.status === 'error' && <X size={16} className="text-red-500" />}
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">
                           {row.date ? new Date(row.date).toLocaleDateString('pt-BR') : '-'}
@@ -639,7 +689,20 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                             <span className="text-red-600 text-xs">{row.errorMsg}</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-center text-xs">{row.quantity}</td>
+                        <td className="px-3 py-2 text-center text-xs">
+                          <span className={row.warnings.some(w => w.type === 'qty_very_high') ? 'text-red-600 font-bold' : row.warnings.some(w => w.type === 'qty_high') ? 'text-orange-600 font-semibold' : ''}>
+                            {row.quantity}
+                          </span>
+                          {row.warnings.length > 0 && (
+                            <div className="mt-1 space-y-0.5">
+                              {row.warnings.map((w, wi) => (
+                                <p key={wi} className={`text-[10px] leading-tight ${w.type === 'qty_very_high' ? 'text-red-500' : 'text-orange-500'}`}>
+                                  {w.message}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-xs text-gray-600">{row.unit}</td>
                         <td className="px-3 py-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -668,7 +731,7 @@ export function DataImportTool({ flavors, useSupabase, onImportComplete }: DataI
                         </td>
                       </tr>
                     ))}
-                    {previewFilter !== 'all' && matchedRows.filter(r => r.status === previewFilter).length === 0 && (
+                    {previewFilter !== 'all' && matchedRows.filter(r => previewFilter === 'warnings' ? r.warnings.length > 0 : r.status === previewFilter).length === 0 && (
                       <tr>
                         <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
                           Nenhum item neste filtro
