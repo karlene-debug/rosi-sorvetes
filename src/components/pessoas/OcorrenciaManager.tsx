@@ -27,11 +27,28 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd }: Ocorrenc
   const [form, setForm] = useState({
     funcionarioId: '',
     data: new Date().toISOString().split('T')[0],
+    dataFim: '',
     tipo: 'falta',
     descricao: '',
     dias: '1',
     registradoPor: '',
   })
+
+  // Tipos que precisam de periodo (inicio/fim)
+  const tiposComPeriodo = ['atestado', 'ferias', 'suspensao']
+  const mostraPeriodo = tiposComPeriodo.includes(form.tipo)
+
+  // Auto-calcular dias quando data inicio/fim mudam
+  const handleDateChange = (field: 'data' | 'dataFim', value: string) => {
+    const updated = { ...form, [field]: value }
+    if (updated.data && updated.dataFim && mostraPeriodo) {
+      const inicio = new Date(updated.data + 'T12:00:00')
+      const fim = new Date(updated.dataFim + 'T12:00:00')
+      const diff = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      if (diff > 0) updated.dias = String(diff)
+    }
+    setForm(updated)
+  }
 
   const handleSubmit = async () => {
     if (!form.funcionarioId || !form.data) return
@@ -40,12 +57,13 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd }: Ocorrenc
       await onAdd({
         funcionarioId: form.funcionarioId,
         data: form.data,
+        dataFim: mostraPeriodo && form.dataFim ? form.dataFim : undefined,
         tipo: form.tipo,
         descricao: form.descricao || undefined,
         dias: parseInt(form.dias) || 1,
         registradoPor: form.registradoPor || undefined,
       })
-      setForm({ funcionarioId: '', data: new Date().toISOString().split('T')[0], tipo: 'falta', descricao: '', dias: '1', registradoPor: '' })
+      setForm({ funcionarioId: '', data: new Date().toISOString().split('T')[0], dataFim: '', tipo: 'falta', descricao: '', dias: '1', registradoPor: '' })
       setShowForm(false)
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
@@ -111,12 +129,20 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd }: Ocorrenc
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Data *</label>
-                <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})}
+                <label className="block text-xs font-medium text-gray-600 mb-1">{mostraPeriodo ? 'Data Inicio *' : 'Data *'}</label>
+                <input type="date" value={form.data} onChange={e => handleDateChange('data', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300" />
               </div>
+              {mostraPeriodo && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Data Fim</label>
+                  <input type="date" value={form.dataFim} onChange={e => handleDateChange('dataFim', e.target.value)}
+                    min={form.data}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300" />
+                </div>
+              )}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Dias</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Dias {mostraPeriodo ? '(auto)' : ''}</label>
                 <input type="number" min="1" value={form.dias} onChange={e => setForm({...form, dias: e.target.value})}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300" />
               </div>
@@ -169,6 +195,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd }: Ocorrenc
                   <div className="text-right flex-shrink-0 ml-3">
                     <span className="text-xs text-gray-500">
                       {new Date(o.data + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      {o.dataFim && ` - ${new Date(o.dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}`}
                     </span>
                     {o.registradoPor && (
                       <p className="text-[10px] text-gray-400">por {o.registradoPor}</p>
