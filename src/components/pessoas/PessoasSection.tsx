@@ -247,6 +247,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
       .insert({
         funcionario_id: o.funcionarioId,
         data: o.data,
+        data_fim: o.dataFim || null,
         tipo: o.tipo,
         descricao: o.descricao || null,
         dias: o.dias,
@@ -260,6 +261,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
       funcionarioId: data.funcionario_id,
       funcionarioNome: data.funcionarios?.nome || undefined,
       data: data.data,
+      dataFim: data.data_fim || undefined,
       tipo: data.tipo,
       descricao: data.descricao || undefined,
       dias: data.dias || 1,
