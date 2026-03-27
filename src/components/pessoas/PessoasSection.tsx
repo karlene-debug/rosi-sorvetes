@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, Briefcase, AlertCircle, Loader2, WifiOff } from 'lucide-react'
+import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree, Gift } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FuncionarioManager } from './FuncionarioManager'
 import { CargoManager } from './CargoManager'
 import { OcorrenciaManager } from './OcorrenciaManager'
+import { FeriasManager } from './FeriasManager'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 
@@ -40,11 +41,23 @@ export interface Funcionario {
   observacao?: string
 }
 
+export interface Beneficio {
+  id: string
+  funcionarioId: string
+  tipo: string
+  valorEmpresa: number
+  valorColaborador: number
+  percentualColaborador?: number
+  descricao?: string
+  status: string
+}
+
 export interface Ocorrencia {
   id: string
   funcionarioId: string
   funcionarioNome?: string
   data: string
+  dataFim?: string
   tipo: string
   descricao?: string
   dias: number
@@ -52,12 +65,29 @@ export interface Ocorrencia {
   registradoPor?: string
 }
 
-type PessoasTab = 'funcionarios' | 'cargos' | 'ocorrencias'
+export interface Ferias {
+  id: string
+  funcionarioId: string
+  funcionarioNome?: string
+  unidadeNome?: string
+  periodoAquisitivoInicio: string
+  periodoAquisitivoFim: string
+  dataLimite: string
+  dataInicio?: string
+  dataFim?: string
+  dias: number
+  status: string
+  alerta?: string
+  observacao?: string
+}
+
+type PessoasTab = 'funcionarios' | 'cargos' | 'ocorrencias' | 'ferias'
 
 const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
   { id: 'funcionarios', label: 'Funcionarios', icon: <Users size={16} /> },
   { id: 'cargos', label: 'Cargos', icon: <Briefcase size={16} /> },
   { id: 'ocorrencias', label: 'Ocorrencias', icon: <AlertCircle size={16} /> },
+  { id: 'ferias', label: 'Ferias', icon: <Palmtree size={16} /> },
 ]
 
 interface PessoasSectionProps {
