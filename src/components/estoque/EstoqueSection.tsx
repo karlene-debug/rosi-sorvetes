@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload } from 'lucide-react'
+import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
@@ -9,11 +9,14 @@ import { FlavorManager } from './FlavorManager'
 import { ColaboradorManager } from './ColaboradorManager'
 import { InventoryModule } from './InventoryModule'
 import { DataImportTool } from './DataImportTool'
+import { ProductManager } from './ProductManager'
 import type { Flavor, StockMovement, Colaborador, InventoryCount } from '@/data/stockData'
+import type { Produto } from '@/data/productTypes'
 import { initialFlavors, initialMovements, initialColaboradores, initialInventories, getActiveColaboradores } from '@/data/stockData'
 import * as db from '@/lib/database'
+import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'sabores' | 'colaboradores' | 'importar'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores' | 'colaboradores'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
@@ -22,6 +25,7 @@ const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'inventario', label: 'Inventario', icon: <ClipboardCheck size={16} /> },
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
   { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} /> },
+  { id: 'produtos', label: 'Produtos', icon: <Package size={16} /> },
   { id: 'sabores', label: 'Sabores', icon: <IceCream size={16} /> },
   { id: 'colaboradores', label: 'Equipe', icon: <Users size={16} /> },
 ]
@@ -32,6 +36,7 @@ export function EstoqueSection() {
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements)
   const [colaboradores, setColaboradores] = useState<Colaborador[]>(initialColaboradores)
   const [inventories, setInventories] = useState<InventoryCount[]>(initialInventories)
+  const [produtos, setProdutos] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
   const [useSupabase, setUseSupabase] = useState(false)
 
@@ -57,6 +62,14 @@ export function EstoqueSection() {
       setColaboradores(colabs.length > 0 ? colabs : initialColaboradores)
       setMovements(movs.length > 0 ? movs : initialMovements)
       setInventories(invs.length > 0 ? invs : initialInventories)
+
+      // Tenta carregar produtos da v2
+      try {
+        const prods = await dbV2.fetchProdutos()
+        setProdutos(prods)
+      } catch {
+        // Tabela produtos pode nao existir ainda
+      }
     } catch {
       setUseSupabase(false)
     } finally {
@@ -154,6 +167,21 @@ export function EstoqueSection() {
     }
   }
 
+  const handleToggleProdutoStatus = async (id: string) => {
+    const prod = produtos.find(p => p.id === id)
+    if (!prod) return
+    setProdutos(prev => prev.map(p =>
+      p.id === id ? { ...p, status: p.status === 'ativo' ? 'inativo' : 'ativo' } : p
+    ))
+    if (useSupabase) {
+      try {
+        await dbV2.toggleProdutoStatus(id, prod.status)
+      } catch (err) {
+        console.error('Erro ao atualizar produto:', err)
+      }
+    }
+  }
+
   const handleSaveInventory = async (inventory: InventoryCount) => {
     setInventories(prev => [inventory, ...prev])
     if (useSupabase) {
@@ -240,6 +268,12 @@ export function EstoqueSection() {
           flavors={flavors}
           useSupabase={useSupabase}
           onImportComplete={loadData}
+        />
+      )}
+      {activeTab === 'produtos' && (
+        <ProductManager
+          produtos={produtos}
+          onToggleStatus={handleToggleProdutoStatus}
         />
       )}
       {activeTab === 'sabores' && (
