@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from '@/components/Sidebar'
 import { KPICards } from '@/components/KPICards'
 import { RevenueChart } from '@/components/RevenueChart'
@@ -6,15 +6,27 @@ import { FixedCosts } from '@/components/FixedCosts'
 import { AccountsPayable } from '@/components/AccountsPayable'
 import { EstoqueSection } from '@/components/estoque/EstoqueSection'
 import { FinanceiroSection } from '@/components/financeiro/FinanceiroSection'
-import { Bell, Search, IceCream } from 'lucide-react'
+import { PessoasSection } from '@/components/pessoas/PessoasSection'
+import { Bell, Search, IceCream, MapPin } from 'lucide-react'
+import type { Unidade } from '@/data/productTypes'
+import * as dbV2 from '@/lib/database_v2'
 
 function App() {
   const [activeSection, setActiveSection] = useState('dashboard')
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [unidadeSelecionada, setUnidadeSelecionada] = useState<string>('todas')
+
+  useEffect(() => {
+    dbV2.fetchUnidades()
+      .then(u => setUnidades(u))
+      .catch(() => {})
+  }, [])
 
   const sectionTitles: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard', subtitle: 'Visao geral do negocio' },
-    estoque: { title: 'Estoque de Sorvetes', subtitle: 'Controle de producao, saidas e saldo por sabor' },
+    estoque: { title: 'Estoque', subtitle: 'Controle de producao, saidas e saldo por produto' },
     financeiro: { title: 'Financeiro', subtitle: 'Contas a pagar, custos fixos, fornecedores e plano de contas' },
+    pessoas: { title: 'Pessoas', subtitle: 'Gestao de equipe, cargos e ocorrencias' },
   }
 
   const current = sectionTitles[activeSection] || sectionTitles.dashboard
@@ -33,6 +45,22 @@ function App() {
               <p className="text-xs text-gray-500 hidden sm:block">{current.subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
+              {/* Seletor de Unidade */}
+              {unidades.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FCE4EC] rounded-xl">
+                  <MapPin size={14} className="text-[#E91E63]" />
+                  <select
+                    value={unidadeSelecionada}
+                    onChange={e => setUnidadeSelecionada(e.target.value)}
+                    className="bg-transparent text-sm font-medium text-[#E91E63] focus:outline-none cursor-pointer"
+                  >
+                    <option value="todas">Todas as unidades</option>
+                    {unidades.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="relative hidden md:block">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -74,6 +102,11 @@ function App() {
           {/* Financeiro */}
           {activeSection === 'financeiro' && (
             <FinanceiroSection />
+          )}
+
+          {/* Pessoas */}
+          {activeSection === 'pessoas' && (
+            <PessoasSection unidades={unidades} />
           )}
         </div>
 

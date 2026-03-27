@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutDashboard, Wallet, Menu, X, IceCream, Warehouse } from 'lucide-react'
+import { LayoutDashboard, Wallet, Menu, X, IceCream, Warehouse, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -12,6 +12,7 @@ const navItems: NavItem[] = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', id: 'dashboard' },
   { icon: <Warehouse size={20} />, label: 'Estoque', id: 'estoque' },
   { icon: <Wallet size={20} />, label: 'Financeiro', id: 'financeiro' },
+  { icon: <Users size={20} />, label: 'Pessoas', id: 'pessoas' },
 ]
 
 interface SidebarProps {
