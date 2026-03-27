@@ -123,24 +123,6 @@ export function EstoqueSection() {
     }
   }
 
-  // Handler legado: movimentacoes usando sabores (para compatibilidade)
-  const handleAddMovements = async (newMovements: StockMovement[]) => {
-    setMovements(prev => [...newMovements, ...prev])
-    if (useSupabase) {
-      try {
-        await db.insertMovimentacoes(newMovements.map(m => ({
-          sabor_id: m.saborId,
-          quantidade: m.quantidade,
-          unidade: m.unidade,
-          tipo: m.tipo,
-          responsavel: m.responsavel,
-        })))
-      } catch (err) {
-        console.error('Erro ao salvar movimentacao:', err)
-      }
-    }
-  }
-
   const handleAddFlavor = async (flavor: Flavor) => {
     if (useSupabase) {
       try {
