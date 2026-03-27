@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree, Gift } from 'lucide-react'
+import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FuncionarioManager } from './FuncionarioManager'
 import { CargoManager } from './CargoManager'
@@ -99,6 +99,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([])
+  const [ferias, setFerias] = useState<Ferias[]>([])
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
 
@@ -163,6 +164,30 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
         documentoUrl: o.documento_url || undefined,
         registradoPor: o.registrado_por || undefined,
       })))
+
+      // Ferias
+      try {
+        const { data: fData } = await supabase
+          .from('vw_ferias_vencimentos')
+          .select('*')
+        setFerias((fData || []).map(f => ({
+          id: f.id,
+          funcionarioId: f.funcionario_id,
+          funcionarioNome: f.funcionario_nome || undefined,
+          unidadeNome: f.unidade_nome || undefined,
+          periodoAquisitivoInicio: f.periodo_aquisitivo_inicio,
+          periodoAquisitivoFim: f.periodo_aquisitivo_fim,
+          dataLimite: f.data_limite,
+          dataInicio: f.data_inicio || undefined,
+          dataFim: f.data_fim || undefined,
+          dias: f.dias || 30,
+          status: f.status,
+          alerta: f.alerta || undefined,
+          observacao: f.observacao || undefined,
+        })))
+      } catch {
+        // View pode nao existir ainda
+      }
 
       setConnected(true)
     } catch {
@@ -297,6 +322,12 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
           ocorrencias={ocorrencias}
           funcionarios={funcionarios}
           onAdd={handleAddOcorrencia}
+        />
+      )}
+      {activeTab === 'ferias' && (
+        <FeriasManager
+          ferias={ferias}
+          funcionarios={funcionarios}
         />
       )}
     </div>
