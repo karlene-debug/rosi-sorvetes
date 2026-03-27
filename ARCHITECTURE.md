@@ -10,57 +10,59 @@ Primeiro cliente: Rosi Sorvetes. Objetivo: virar produto SaaS replicavel.
 - **Donos:** Rosi e Atila (centralizam tudo, sobrecarregados)
 - **Objetivo:** Descentralizar gestao, dar clareza nos numeros, permitir expansao
 - **Problema atual:** Nenhum controle real. Planilhas soltas, sem processos definidos
-- **Meta futura:** Manter fabrica unica + expandir pra N lojas
+- **Meta futura:** Cada loja com fabrica propria + expandir pra N lojas
+- **Visao de produto:** SaaS replicavel para outras pequenas industrias + varejo
 
 ---
 
 ## 2. Estrutura Operacional
 
 ```
-FABRICA (central de producao - dentro da Loja 1)
-│
-├── Producao de Sorvete
-│     ├── Sabores primarios (Chocolate, Morango, Creme...)
-│     └── Sabores derivados/montagem (Napolitano, Acai/Leite Ninho...)
-│
-├── Producao de Bolo de Sorvete
-│     ├── Bolo pre-pronto (montado, endurecendo ~1 dia)
-│     └── Bolo finalizado (pronto pra venda)
-│
-├── Transferencia → Loja 1 (mesmo local)
-└── Transferencia → Loja 2 (Cristo) + futuras lojas
-
-LOJA 1 (principal)
-├── ~10 funcionarios (gerente, caixa, balconistas, limpeza)
-├── Venda: balcao self-service (peso), milkshake, bolo, bebidas
-├── Canais: PDV + iFood
-└── Fabrica fica aqui dentro
+LOJA 1 (principal - Centro)
+├── Fabrica de Sorvete
+├── Fabrica de Bolo de Sorvete
+├── Balcao / Self-service / iFood
+├── ~12 funcionarios
+└── CNPJ principal (compra insumos centralizada)
 
 LOJA 2 (Cristo)
-├── ~1 funcionario
-├── Recebe sorvete/bolo da fabrica
-├── Canais: PDV (mesmo sistema) + iFood
-└── CNPJ diferente, estoque separado
+├── Fabrica de Sorvete (propria, recente)
+├── Balcao / iFood
+├── 4 funcionarios (1 gerente, 1 producao, 2 balconistas)
+├── CNPJ diferente, estoque separado
+└── Recebe insumos via transferencia da Loja 1
 
 LOJAS FUTURAS (N lojas)
-└── Mesmo modelo da Loja 2
+└── Podem ter ou nao fabrica propria
 ```
 
-### Equipe Atual (12 pessoas + diarista)
+### Equipe Atual (~16 pessoas + diarista)
 
-| Funcao | Unidade | Qtd |
-|--------|---------|-----|
-| Dono(a) | Geral | 2 (Rosi, Atila) |
-| Gerente | Loja 1 | 1 (Lais - pode trocar) |
-| Fabricante sorvete | Fabrica | 1 |
-| Fabricante bolo | Fabrica | 1 |
-| Caixa/Balconista | Loja 1 | ~7 |
-| Limpeza | Loja 1 | 1 fixa + diarista |
-| Atendente | Loja 2 | 1 |
+| Funcao | Loja 1 | Loja 2 |
+|--------|--------|--------|
+| Dono(a) | Rosi, Atila | - |
+| Gerente | 1 (Lais - pode trocar) | 1 |
+| Fabricante sorvete | 1 | 1 |
+| Fabricante bolo | 1 | - |
+| Caixa/Balconista | ~7 | 2 |
+| Limpeza | 1 fixa + diarista | - |
+
+### Fluxo de Insumos
+
+```
+Compra centralizada (CNPJ Loja 1)
+├── Insumos ficam na Loja 1
+└── Transfere parte pra Loja 2
+    └── PRECISA registrar pra saber custo real de cada loja
+```
+
+> **RECOMENDACAO:** Contabilmente, seria melhor cada CNPJ comprar seus
+> proprios insumos, ou formalizar as transferencias como venda/remessa
+> entre filiais. Consultar contador sobre a melhor estrutura fiscal.
 
 ---
 
-## 3. Produtos e Fluxos
+## 3. Catalogo de Produtos (levantado via iFood)
 
 ### 3.1 Sorvete
 
@@ -70,7 +72,20 @@ LOJAS FUTURAS (N lojas)
 |------|-----------|---------|
 | Primario | Produzido do zero na fabrica | Chocolate, Morango, Creme |
 | Derivado (montagem) | Montado a partir de primarios | Napolitano = Creme+Morango+Chocolate |
-| Zero acucar | Variante especial | Zero Acucar - Chocolate |
+| Zero acucar | Variante especial, preco diferenciado | Zero Acucar - Morango |
+
+**Formatos de venda (iFood):**
+
+| Produto | Preco | Obs |
+|---------|-------|-----|
+| Caixa 500g (2 sabores) | R$ 29,90 | Cliente escolhe sabores |
+| Caixa 1kg (4 sabores) | R$ 49,90 | |
+| Caixa 1,5kg (4 sabores) | R$ 59,90 | |
+| Caixa 5L tradicional | R$ 87,90 | 1 sabor |
+| Caixa 5L especial | R$ 93,90 | 1 sabor |
+| Caixa 5L gourmet | R$ 105,00 | |
+| Zero Acucar 500g | R$ 29,80-39,95 | Preco mais alto |
+| Zero Acucar 1kg | R$ 59,90-79,90 | |
 
 **Fluxo de producao - Sabor Primario:**
 ```
@@ -85,12 +100,9 @@ Insumos → Producao → Balde no estoque → Saida (balcao/montagem/transferenc
 4. Saida pra balcao ou transferencia
 ```
 
-**Unidades de medida:**
-- Balde (padrao)
-- Caixa de 5L (montagens)
-- Pote de Creme
-
 ### 3.2 Bolo de Sorvete
+
+100% feito de sorvete. Producao apenas na Loja 1.
 
 **Fluxo de producao:**
 ```
@@ -101,71 +113,183 @@ DIA 2 - FINALIZACAO
   Bolo pre-pronto → Bolo FINALIZADO (pronto pra venda)
 
 VENDA
-  Bolo finalizado → Cliente (balcao ou encomenda)
+  Bolo finalizado → Vitrine ou cliente
 ```
 
-**Tipos:**
-- Bolo pronto (vitrine, venda direta)
-- Bolo pre-pronto (monta quando cliente compra)
+**Sabores e tamanhos (iFood):**
 
-**Precificacao:**
-- Custo: sorvete usado (R$/kg) + insumos + mao de obra
-- Venda: R$/kg ou preco fixo por tamanho
+| Sabor | 800g | 1,5kg | 2,5kg |
+|-------|------|-------|-------|
+| Ferrero Rocher | R$ 63,89 | R$ 116,99 | R$ 205,00 |
+| Leite Ninho c/ Morango | R$ 63,99 | R$ 116,99 | R$ 205,00 |
+| Ninho Trufado | R$ 63,99 | R$ 116,99 | R$ 205,00 |
+| Nutella | - | R$ 205,00 | - |
+| Sensacao | - | R$ 116,99 | R$ 180,00 |
 
-### 3.3 Outros Produtos
+**Tipos de estoque:**
+- Bolo pre-pronto (montado, endurecendo)
+- Bolo finalizado (pronto pra venda)
+- Bolo monta-na-hora (pre-pronto → finaliza quando cliente compra)
 
-- Milkshake (usa sorvete do estoque)
-- Agua, refrigerante (revenda)
-- Acai, sundae, casquinha (confirmar com Rosi)
+### 3.3 Acai
 
-### 3.4 Canais de Venda
+Produto proprio com receita/marca Rosi.
+
+```
+Barra de acai (fornecedor) → Fabrica processa e reembala → Acai Rosi
+```
+
+| Produto | Preco |
+|---------|-------|
+| Acai 1kg | R$ 39,90 |
+| Acai 1,5kg | R$ 54,00 |
+| Barra de Acai (processada) | R$ 30,00 |
+| Copo P 300ml | R$ 15,00 |
+| Copo M 400ml | R$ 19,00 |
+
+### 3.4 Milk Shake
+
+Usa sorvete do estoque como ingrediente.
+
+| Tamanho | Preco |
+|---------|-------|
+| P 300ml | R$ 15,00 |
+| M 500ml | R$ 18,00 |
+| G 700ml | R$ 24,00 |
+
+### 3.5 Tacas
+
+| Produto | Preco |
+|---------|-------|
+| Banana Split | R$ 30,00 |
+
+### 3.6 Caldas Quentes (100g)
+
+| Sabor | Preco |
+|-------|-------|
+| Chocolate branco c/ Flocos de Arroz | R$ 10,99 |
+| Chocolate ao leite | R$ 9,99 |
+| Chocolate meio amargo | R$ 9,99 |
+| Chocolate Ferrero Rocher | R$ 10,99 |
+
+### 3.7 Coberturas (190g - Marvi, revenda)
+
+| Sabor | Preco |
+|-------|-------|
+| Morango | R$ 9,50 |
+| Chocolate | R$ 9,50 |
+| Caramelo | R$ 9,50 |
+
+### 3.8 Complementos (revenda)
+
+| Produto | Preco |
+|---------|-------|
+| Cascao 10un | R$ 10,00 |
+| Cestinha Baunilha 5un | R$ 5,50 |
+
+### 3.9 Descartaveis
+
+| Produto | Preco |
+|---------|-------|
+| Colherzinha | R$ 0,15 |
+| Copo 250ml sorvete | R$ 0,15 |
+| Pratinho isopor | R$ 0,20 |
+| Copo 180ml bebida | R$ 0,05 |
+
+### 3.10 Bebidas (revenda)
+
+| Produto | Preco |
+|---------|-------|
+| Coca-Cola Lata 350ml | R$ 5,50 |
+| Coca-Cola Pet 600ml | R$ 7,50 |
+| Coca-Cola Pet 2L | R$ 15,00 |
+| Coca Pet 2L Zero | R$ 15,00 |
+| Fanta Guarana 2L | R$ 10,99 |
+| Agua sem gas 510ml | R$ 4,00 |
+| Agua com gas 510ml | R$ 5,00 |
+| Agua 1,5L | R$ 6,00 |
+
+### 3.11 Canais de Venda
 
 | Canal | Loja 1 | Loja 2 |
 |-------|--------|--------|
-| Balcao (PDV) | Sim | Sim (mesmo sistema) |
-| Self-service (peso) | Sim | Confirmar |
+| Balcao self-service (peso) | Sim | Sim |
+| PDV (DataCaixa) | Sim | Sim (mesmo sistema) |
 | iFood | Sim | Sim |
 
-**Obs sobre self-service:** O PDV registra valor por peso, nao por sabor.
-A saida de estoque do self-service sera por inventario/estimativa, nao por lancamento individual.
+**Self-service:** PDV registra valor por peso, nao por sabor.
+Saida de estoque sera por inventario/estimativa.
 
 ---
 
-## 4. Modulos do Sistema
+## 4. Integracoes
 
-### 4.1 CORE — Unidades e Configuracao
+### 4.1 DataCaixa (PDV)
 
-Base de tudo. Sem isso nada funciona direito.
+**Sistema de caixa usado nas 2 lojas.**
+
+- Site: datacaixa.com.br
+- **NAO tem API publica/REST**
+- Opcoes de integracao:
+  - Exportar relatorios pra Excel (manual)
+  - Importacao via arquivo .txt (layout especifico)
+  - Acesso direto ao banco local (se tiver acesso ao servidor)
+  - "Acompanhamento Online" (sincroniza vendas a cada 30 min, sem API)
+- Ja tem integracao nativa com iFood
+
+**Estrategia:** Comecar importando relatorios CSV do DataCaixa (mesmo fluxo que fizemos com Google Sheets). Depois explorar acesso ao banco local.
+
+### 4.2 iFood
+
+- Ambas as lojas vendem pelo iFood
+- iFood tem API pra parceiros (pedidos, valores, taxas)
+- CNPJ identificado: 01028553000115
+
+---
+
+## 5. Modulos do Sistema
+
+### 5.1 CORE — Unidades e Configuracao
 
 ```sql
--- Unidades/locais do negocio
 CREATE TABLE unidades (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,              -- 'Fabrica', 'Loja Centro', 'Loja Cristo'
-  tipo TEXT NOT NULL,              -- 'fabrica', 'loja'
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('loja', 'fabrica', 'loja_fabrica')),
   cnpj TEXT,
   endereco TEXT,
   telefone TEXT,
+  tem_fabrica_sorvete BOOLEAN DEFAULT FALSE,
+  tem_fabrica_bolo BOOLEAN DEFAULT FALSE,
   status TEXT DEFAULT 'ativo',
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Dados iniciais
--- Fabrica, Loja 1 (Centro), Loja 2 (Cristo)
+INSERT INTO unidades (nome, tipo, tem_fabrica_sorvete, tem_fabrica_bolo) VALUES
+  ('Loja Centro', 'loja_fabrica', true, true),
+  ('Loja Cristo', 'loja_fabrica', true, false);
 ```
 
-### 4.2 PRODUTOS — Sabores, Bolos e Receitas
+### 5.2 PRODUTOS — Catalogo Unificado
 
 ```sql
--- Produtos (sorvete, bolo, bebida, etc)
 CREATE TABLE produtos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   nome TEXT NOT NULL,
-  categoria TEXT NOT NULL,         -- 'sorvete', 'bolo', 'bebida', 'outros'
-  tipo_producao TEXT,              -- 'primario', 'derivado', 'revenda'
-  unidade_medida TEXT,             -- 'Balde', 'Caixa de 5L', 'kg', 'unidade'
-  custo_medio DECIMAL(12,2),      -- custo medio de producao
-  preco_venda DECIMAL(12,2),      -- preco de venda sugerido
+  categoria TEXT NOT NULL CHECK (categoria IN (
+    'sorvete', 'bolo', 'acai', 'milkshake', 'taca',
+    'calda', 'cobertura', 'complemento', 'descartavel',
+    'bebida', 'insumo', 'outros'
+  )),
+  subcategoria TEXT,
+  tipo_producao TEXT CHECK (tipo_producao IN (
+    'primario', 'derivado', 'processado', 'revenda'
+  )),
+  unidade_medida TEXT,
+  custo_medio DECIMAL(12,2),
+  preco_venda DECIMAL(12,2),
+  peso_kg DECIMAL(10,3),
   status TEXT DEFAULT 'ativo',
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
@@ -173,83 +297,63 @@ CREATE TABLE produtos (
 -- Receitas de montagem / ficha tecnica
 CREATE TABLE receitas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  produto_derivado_id UUID REFERENCES produtos(id),  -- Napolitano
-  produto_ingrediente_id UUID REFERENCES produtos(id), -- Chocolate
-  quantidade DECIMAL(10,3) NOT NULL,                   -- 1 balde, 0.5kg, etc
+  produto_derivado_id UUID REFERENCES produtos(id),
+  produto_ingrediente_id UUID REFERENCES produtos(id),
+  quantidade DECIMAL(10,3) NOT NULL,
   unidade TEXT NOT NULL,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Exemplo: Napolitano = 1 Creme + 1 Morango + 1 Chocolate
 ```
 
-### 4.3 ESTOQUE
+### 5.3 ESTOQUE
 
 ```sql
--- Movimentacoes de estoque (tabela central)
 CREATE TABLE movimentacoes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   data TIMESTAMPTZ DEFAULT NOW(),
   produto_id UUID REFERENCES produtos(id),
   quantidade DECIMAL(10,3) NOT NULL,
   unidade TEXT NOT NULL,
-  tipo TEXT NOT NULL,               -- 'producao', 'saida', 'transferencia', 'ajuste', 'perda'
-  destino TEXT,                     -- 'balcao', 'montagem', 'transferencia'
-  unidade_origem_id UUID REFERENCES unidades(id),   -- de onde sai
-  unidade_destino_id UUID REFERENCES unidades(id),  -- pra onde vai
+  tipo TEXT NOT NULL CHECK (tipo IN (
+    'producao', 'saida', 'transferencia', 'ajuste', 'perda',
+    'montagem_saida', 'montagem_entrada'
+  )),
+  destino TEXT CHECK (destino IN ('balcao', 'montagem', 'transferencia', 'ifood')),
+  unidade_origem_id UUID REFERENCES unidades(id),
+  unidade_destino_id UUID REFERENCES unidades(id),
   responsavel_id UUID REFERENCES funcionarios(id),
-  origem TEXT DEFAULT 'plataforma', -- 'plataforma', 'importado', 'api_pdv', 'api_ifood'
+  origem TEXT DEFAULT 'plataforma' CHECK (origem IN (
+    'plataforma', 'importado', 'api_pdv', 'api_ifood'
+  )),
   observacao TEXT,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Estoque atual por unidade (view calculada)
-CREATE VIEW vw_estoque_por_unidade AS
-  -- Saldo = producao + transferencias_entrada - saidas - transferencias_saida +/- ajustes
-  -- Agrupado por produto + unidade
 ```
 
-**Fluxos de movimentacao:**
-
-| Tipo | Origem | Destino | Exemplo |
-|------|--------|---------|---------|
-| producao | Fabrica | Fabrica | Produziu 5 baldes de Chocolate |
-| saida | Loja | - | Vendeu no balcao |
-| transferencia | Fabrica | Loja 2 | Enviou 10 baldes pra Cristo |
-| ajuste | Unidade | - | Correcao de inventario |
-| perda | Unidade | - | Sorvete estragou |
-| montagem_saida | Fabrica | - | Saiu Creme pra montar Napolitano |
-| montagem_entrada | Fabrica | - | Entrou Napolitano montado |
-
-### 4.4 PRODUCAO
+### 5.4 PRODUCAO
 
 ```sql
--- Ordens de producao (opcional, pra rastrear lotes)
 CREATE TABLE ordens_producao (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   data DATE NOT NULL,
   produto_id UUID REFERENCES produtos(id),
   quantidade DECIMAL(10,3),
   unidade TEXT,
-  status TEXT DEFAULT 'em_producao', -- 'em_producao', 'endurecendo', 'finalizado'
+  status TEXT DEFAULT 'em_producao' CHECK (status IN (
+    'em_producao', 'endurecendo', 'finalizado', 'cancelado'
+  )),
   responsavel_id UUID REFERENCES funcionarios(id),
-  unidade_id UUID REFERENCES unidades(id),           -- sempre Fabrica
+  unidade_id UUID REFERENCES unidades(id),
   observacao TEXT,
   criado_em TIMESTAMPTZ DEFAULT NOW(),
   finalizado_em TIMESTAMPTZ
 );
-
--- Util especialmente pro bolo que tem etapas (montagem → endurecendo → pronto)
 ```
 
-### 4.5 FINANCEIRO
+### 5.5 FINANCEIRO
 
 ```sql
--- Plano de contas (ja existe)
--- Fornecedores (ja existe)
--- Custos fixos (ja existe)
-
--- Contas a pagar - agora com unidade
+-- Contas a pagar - com centro de custo
 CREATE TABLE contas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   descricao TEXT NOT NULL,
@@ -258,164 +362,134 @@ CREATE TABLE contas (
   data_pagamento DATE,
   plano_contas_id UUID REFERENCES plano_contas(id),
   fornecedor_id UUID REFERENCES fornecedores(id),
-  unidade_id UUID REFERENCES unidades(id),           -- NOVO: centro de custo
+  unidade_id UUID REFERENCES unidades(id),
   situacao TEXT DEFAULT 'pendente',
   mes_referencia INTEGER,
   ano_referencia INTEGER,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Entradas/Receitas - agora com unidade e canal
+-- Entradas/Receitas - com unidade e canal
 CREATE TABLE entradas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   data DATE NOT NULL,
   valor DECIMAL(12,2) NOT NULL,
-  unidade_id UUID REFERENCES unidades(id),           -- qual loja
-  canal TEXT,                                         -- 'balcao', 'ifood'
-  tipo_pagamento TEXT,                                -- 'dinheiro', 'pix', 'credito', 'debito'
-  origem TEXT DEFAULT 'plataforma',                   -- 'plataforma', 'api_pdv', 'api_ifood'
+  unidade_id UUID REFERENCES unidades(id),
+  canal TEXT CHECK (canal IN ('balcao', 'ifood', 'encomenda', 'outros')),
+  tipo_pagamento TEXT,
+  origem TEXT DEFAULT 'plataforma',
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
-
--- DRE por unidade (view)
-CREATE VIEW vw_dre_por_unidade AS
-  -- Receita - Custos = Lucro, agrupado por unidade + mes
 ```
 
-### 4.6 PESSOAS (RH)
+### 5.6 PESSOAS (RH)
 
 ```sql
--- Funcionarios
-CREATE TABLE funcionarios (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,
-  cpf TEXT,
-  cargo_id UUID REFERENCES cargos(id),
-  unidade_id UUID REFERENCES unidades(id),           -- onde trabalha
-  data_admissao DATE,
-  data_demissao DATE,
-  salario DECIMAL(12,2),
-  tipo_contrato TEXT,              -- 'clt', 'diarista', 'socio', 'pj'
-  status TEXT DEFAULT 'ativo',
-  criado_em TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Cargos e descricao de atividades
 CREATE TABLE cargos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,              -- 'Balconista', 'Caixa', 'Fabricante', 'Gerente'
-  descricao_atividades TEXT,       -- texto livre com as atividades do cargo
+  nome TEXT NOT NULL,
+  descricao_atividades TEXT,
   faixa_salarial_min DECIMAL(12,2),
   faixa_salarial_max DECIMAL(12,2),
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ocorrencias (faltas, atestados, advertencias)
+CREATE TABLE funcionarios (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  cpf TEXT,
+  cargo_id UUID REFERENCES cargos(id),
+  unidade_id UUID REFERENCES unidades(id),
+  data_admissao DATE,
+  data_demissao DATE,
+  salario DECIMAL(12,2),
+  tipo_contrato TEXT CHECK (tipo_contrato IN ('clt', 'diarista', 'socio', 'pj')),
+  status TEXT DEFAULT 'ativo',
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE ocorrencias (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   funcionario_id UUID REFERENCES funcionarios(id),
   data DATE NOT NULL,
-  tipo TEXT NOT NULL,              -- 'falta', 'atestado', 'advertencia', 'atraso', 'outros'
+  tipo TEXT NOT NULL CHECK (tipo IN ('falta', 'atestado', 'advertencia', 'atraso', 'outros')),
   descricao TEXT,
-  documento_url TEXT,              -- foto do atestado, etc
+  documento_url TEXT,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Beneficios
 CREATE TABLE beneficios (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   funcionario_id UUID REFERENCES funcionarios(id),
-  tipo TEXT NOT NULL,              -- 'vt', 'vr', 'plano_saude', 'outros'
+  tipo TEXT NOT NULL CHECK (tipo IN ('vt', 'vr', 'plano_saude', 'outros')),
   valor DECIMAL(12,2),
   mes_referencia INTEGER,
   ano_referencia INTEGER,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Folha de pagamento mensal
 CREATE TABLE folha_pagamento (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   funcionario_id UUID REFERENCES funcionarios(id),
   mes_referencia INTEGER NOT NULL,
   ano_referencia INTEGER NOT NULL,
   salario_base DECIMAL(12,2),
-  descontos DECIMAL(12,2) DEFAULT 0,    -- faltas, adiantamentos
-  beneficios DECIMAL(12,2) DEFAULT 0,   -- VT, VR
-  encargos DECIMAL(12,2) DEFAULT 0,     -- FGTS, INSS patronal
-  provisoes DECIMAL(12,2) DEFAULT 0,    -- ferias, 13o
-  total_custo DECIMAL(12,2),            -- custo total pra empresa
+  descontos DECIMAL(12,2) DEFAULT 0,
+  beneficios DECIMAL(12,2) DEFAULT 0,
+  encargos DECIMAL(12,2) DEFAULT 0,
+  provisoes DECIMAL(12,2) DEFAULT 0,
+  total_custo DECIMAL(12,2),
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-**Indicadores de RH:**
-- **Turnover:** admissoes e demissoes / total funcionarios
-- **Absenteismo:** dias ausentes / dias uteis
-- **Custo de pessoal por unidade**
-
-### 4.7 INTEGRACOES
-
-```
-API PDV (sistema de caixa)
-├── Puxar vendas automaticamente
-├── Receita por forma de pagamento
-└── Ambas as lojas (mesmo sistema)
-
-API iFood
-├── Pedidos e valores
-├── Taxas e comissoes do iFood
-├── Ambas as lojas
-```
-
 ---
 
-## 5. Perfis de Acesso
+## 6. Perfis de Acesso
 
 | Perfil | Acesso | Quem |
 |--------|--------|------|
 | Dono/Diretor | Tudo. DRE, custos, RH, config | Rosi, Atila |
-| Gerente | Estoque, producao, equipe da unidade, vendas | Lais |
+| Gerente | Estoque, producao, equipe da unidade, vendas | Gerentes |
 | Operador Fabrica | Producao, saidas, montagem | Fabricantes |
 | Caixa/Balconista | Consulta estoque (vitrine), registrar saida balcao | Equipe |
-| Financeiro | Contas, fornecedores, folha (futuro: contador externo) | Contabilidade |
+| Financeiro | Contas, fornecedores, folha (contador externo) | Contabilidade |
 
 ---
 
-## 6. Prioridade de Implementacao
+## 7. Prioridade de Implementacao
 
 ### Fase 1 — Fundacao (AGORA)
-> Sem isso nada funciona direito
 
 - [x] Importacao de dados historicos (CSV)
-- [ ] Tabela de unidades (Fabrica, Loja 1, Loja 2)
-- [ ] Migrar movimentacoes pra ter unidade_origem/destino
+- [ ] Tabela de unidades (Loja 1 + Loja 2, com flag de fabrica)
 - [ ] Migrar sabores → tabela de produtos generica
-- [ ] Campo tipo_producao (primario/derivado) nos produtos
+- [ ] Campo tipo_producao (primario/derivado/processado/revenda)
 - [ ] Tabela de receitas (montagem)
-- [ ] Perfis de acesso basico
+- [ ] Migrar movimentacoes pra ter unidade_origem/destino
+- [ ] Cadastro completo de produtos (bolos, acai, bebidas, complementos)
 
 ### Fase 2 — Operacao Diaria
-> Pro dia a dia funcionar
 
 - [ ] Formulario de montagem (automatiza saida primarios + entrada derivado)
-- [ ] Transferencia fabrica → lojas
+- [ ] Transferencia entre unidades (insumos e produtos)
 - [ ] Estoque por unidade (cada loja ve o seu)
-- [ ] Producao de bolo (pre-pronto → finalizado)
+- [ ] Producao de bolo (pre-pronto → endurecendo → finalizado)
+- [ ] Producao de acai (barra → processamento → produto final)
 - [ ] Vitrine digital (balconista ve sabores disponiveis)
 - [ ] Alertas de estoque baixo
 
 ### Fase 3 — Financeiro Completo
-> Clareza nos numeros
 
 - [ ] Financeiro por unidade/centro de custo
 - [ ] DRE por loja + consolidado
-- [ ] Integracao PDV (vendas automaticas)
-- [ ] Integracao iFood
-- [ ] Custo de producao por produto
+- [ ] Importacao de vendas do DataCaixa (CSV/Excel)
+- [ ] Integracao iFood (API)
+- [ ] Custo de producao por produto (ficha tecnica)
 - [ ] Precificacao (custo vs venda vs margem)
+- [ ] Controle de transferencia de insumos entre CNPJs
 
 ### Fase 4 — Pessoas
-> Gestao de equipe
 
 - [ ] Cadastro de funcionarios
 - [ ] Cargos e descricao de atividades
@@ -423,19 +497,20 @@ API iFood
 - [ ] Beneficios e salarios
 - [ ] Folha de pagamento
 - [ ] Indicadores (turnover, absenteismo)
+- [ ] Custo de pessoal por unidade
 
-### Fase 5 — Escala
-> Preparar pra crescer
+### Fase 5 — Escala e Produto
 
 - [ ] Onboarding/guia interativo pros funcionarios
-- [ ] Multi-empresa (SaaS)
 - [ ] Dashboard executivo (visao dono)
 - [ ] App mobile pra operacao
 - [ ] Relatorios e exportacao
+- [ ] Multi-empresa (SaaS - outros clientes)
+- [ ] Perfis de acesso com Supabase Auth
 
 ---
 
-## 7. Stack Tecnica
+## 8. Stack Tecnica
 
 | Camada | Tecnologia |
 |--------|-----------|
@@ -444,31 +519,50 @@ API iFood
 | Graficos | Recharts |
 | Backend/DB | Supabase (Postgres + Auth + Storage + Edge Functions) |
 | Deploy | Vercel |
-| Integracoes | API PDV (a descobrir) + API iFood |
+| PDV | DataCaixa (sem API, importacao CSV) |
+| Delivery | iFood (API disponivel) |
 
 ---
 
-## 8. Decisoes Arquiteturais
+## 9. Decisoes Arquiteturais
 
-1. **Tabela `produtos` generica** em vez de `sabores` — suporta sorvete, bolo, bebida, qualquer coisa
-2. **Toda movimentacao tem unidade_origem e unidade_destino** — rastreia tudo entre locais
-3. **Receitas como tabela relacional** — um derivado tem N ingredientes com quantidades
-4. **Financeiro sempre vinculado a unidade** — DRE separado por loja
-5. **Integracoes via origem** — cada registro sabe se veio do sistema, importacao, PDV ou iFood
-6. **Perfis de acesso desde o inicio** — cada pessoa ve so o que precisa
-7. **Bolo usa mesmo fluxo de producao** — com campo de status (pre-pronto/finalizado)
+1. **Tabela `produtos` generica** em vez de `sabores` — suporta sorvete, bolo, acai, bebida, insumo
+2. **Cada unidade pode ter fabrica** — flag `tem_fabrica_sorvete/bolo` na unidade
+3. **Toda movimentacao tem unidade_origem e unidade_destino** — rastreia tudo entre locais
+4. **Receitas como tabela relacional** — um derivado tem N ingredientes com quantidades
+5. **Financeiro sempre vinculado a unidade** — DRE separado por loja
+6. **Integracoes via origem** — cada registro sabe se veio do sistema, importacao, PDV ou iFood
+7. **Perfis de acesso desde o inicio** — cada pessoa ve so o que precisa
+8. **Bolo usa ordens de producao** — com status (em_producao/endurecendo/finalizado)
+9. **Acai = produto processado** — compra barra, processa, vende com marca propria
 
 ---
 
-## 9. Pendencias (aguardando Rosi)
+## 10. Recomendacoes para Rosi
 
-- [ ] Nome do sistema de caixa (PDV) e possibilidade de API
+### Contabil/Fiscal
+- **Separar compras por CNPJ** — Cada loja deveria comprar seus insumos no proprio CNPJ, ou formalizar transferencias como remessa entre filiais. Consultar contador.
+- **Formalizar transferencias** — Toda movimentacao de estoque entre lojas precisa de registro (nota de remessa ou similar).
+
+### Operacional
+- **Treinar equipe nos fluxos corretos** — Especialmente montagem: nao dar saida direto no derivado, mas sim nos primarios usados.
+- **Inventario semanal** — Comecar com contagem semanal ate ter controle diario confiavel.
+- **Padronizar receitas** — Documentar quantidade exata de cada ingrediente por montagem.
+
+### Gestao
+- **Definir responsabilidades claras** — Quem faz o que em cada unidade, por escrito.
+- **Delegar com ferramentas** — O sistema permite que gerentes controlem sem os donos precisarem estar presentes.
+- **Metas por unidade** — Com DRE separado, cada loja tem suas proprias metas de receita/custo.
+
+---
+
+## 11. Pendencias (aguardando Rosi)
+
 - [ ] Lista completa de sabores de montagem e seus ingredientes
-- [ ] Sabores e tipos de bolo
-- [ ] Tamanhos e precos de bolo
 - [ ] Confirmar: bolo precisa de 1 dia pra endurecer?
 - [ ] Quantos bolos fazem por dia em media
 - [ ] Custo medio por balde de sorvete
-- [ ] Frequencia de envio de sorvete pra Loja 2
-- [ ] Outros produtos vendidos (acai, sundae, casquinha?)
+- [ ] Frequencia de envio de insumos pra Loja 2
+- [ ] Produtos vendidos que nao estao no iFood (sundae? casquinha avulsa?)
+- [ ] Acesso ao servidor DataCaixa (pra explorar banco de dados)
 - [ ] Dores de gestao que ainda nao foram mapeadas
