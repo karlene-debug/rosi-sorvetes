@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload, Package } from 'lucide-react'
+import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
@@ -10,18 +10,20 @@ import { ColaboradorManager } from './ColaboradorManager'
 import { InventoryModule } from './InventoryModule'
 import { DataImportTool } from './DataImportTool'
 import { ProductManager } from './ProductManager'
+import { ReceitasManager } from './ReceitasManager'
 import type { Flavor, StockMovement, Colaborador, InventoryCount } from '@/data/stockData'
 import type { Produto } from '@/data/productTypes'
 import { initialFlavors, initialMovements, initialColaboradores, initialInventories, getActiveColaboradores } from '@/data/stockData'
 import * as db from '@/lib/database'
 import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores' | 'colaboradores'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores' | 'colaboradores'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
   { id: 'saida', label: 'Saida p/ Balcao', icon: <Send size={16} /> },
   { id: 'producao', label: 'Producao', icon: <Factory size={16} /> },
+  { id: 'receitas', label: 'Receitas', icon: <BookOpen size={16} /> },
   { id: 'inventario', label: 'Inventario', icon: <ClipboardCheck size={16} /> },
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
   { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} /> },
@@ -83,6 +85,45 @@ export function EstoqueSection() {
 
   // === HANDLERS COM SUPABASE ===
 
+  // Handler v2: producao e saida usando tabela produtos
+  const handleAddMovementsV2 = async (
+    tipo: 'producao' | 'saida',
+    items: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; responsavel?: string }[],
+  ) => {
+    // Adiciona ao estado local como StockMovement (compatibilidade com dashboard/historico)
+    const now = new Date().toISOString()
+    const localMovements: StockMovement[] = items.map((item, idx) => ({
+      id: `local_${Date.now()}_${idx}`,
+      data: now,
+      saborId: item.produtoId,
+      sabor: item.produtoNome,
+      quantidade: item.quantidade,
+      unidade: item.unidade as StockMovement['unidade'],
+      tipo,
+      responsavel: item.responsavel || '',
+      origem: 'plataforma' as const,
+    }))
+    setMovements(prev => [...localMovements, ...prev])
+
+    if (useSupabase) {
+      try {
+        await Promise.all(items.map(item =>
+          dbV2.insertMovimentacaoV2({
+            produto_id: item.produtoId,
+            quantidade: item.quantidade,
+            unidade: item.unidade,
+            tipo,
+            destino: tipo === 'saida' ? 'balcao' : undefined,
+            responsavel: item.responsavel || '',
+          })
+        ))
+      } catch (err) {
+        console.error('Erro ao salvar movimentacao v2:', err)
+      }
+    }
+  }
+
+  // Handler legado: movimentacoes usando sabores (para compatibilidade)
   const handleAddMovements = async (newMovements: StockMovement[]) => {
     setMovements(prev => [...newMovements, ...prev])
     if (useSupabase) {
@@ -246,10 +287,21 @@ export function EstoqueSection() {
         <StockDashboard flavors={flavors} movements={movements} />
       )}
       {activeTab === 'saida' && (
-        <StockExitForm flavors={flavors} colaboradores={activeNames} onSubmit={handleAddMovements} />
+        <StockExitForm
+          produtos={produtos}
+          colaboradores={activeNames}
+          onSubmit={(items) => handleAddMovementsV2('saida', items)}
+        />
       )}
       {activeTab === 'producao' && (
-        <ProductionForm flavors={flavors} colaboradores={activeNames} onSubmit={handleAddMovements} />
+        <ProductionForm
+          produtos={produtos}
+          colaboradores={activeNames}
+          onSubmit={(items) => handleAddMovementsV2('producao', items)}
+        />
+      )}
+      {activeTab === 'receitas' && (
+        <ReceitasManager produtos={produtos} />
       )}
       {activeTab === 'inventario' && (
         <InventoryModule
