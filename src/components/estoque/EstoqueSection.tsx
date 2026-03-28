@@ -240,6 +240,17 @@ export function EstoqueSection() {
     }
   }
 
+  const handleAddProduto = async (p: Omit<Produto, 'id' | 'criadoEm'>) => {
+    if (useSupabase) {
+      try {
+        const saved = await dbV2.insertProduto(p)
+        setProdutos(prev => [...prev, saved].sort((a, b) => a.nome.localeCompare(b.nome)))
+      } catch (err) {
+        console.error('Erro ao salvar produto:', err)
+      }
+    }
+  }
+
   const handleToggleProdutoStatus = async (id: string) => {
     const prod = produtos.find(p => p.id === id)
     if (!prod) return
@@ -365,6 +376,7 @@ export function EstoqueSection() {
         <ProductManager
           produtos={produtos}
           onToggleStatus={handleToggleProdutoStatus}
+          onAdd={handleAddProduto}
         />
       )}
       {activeTab === 'sabores' && (
