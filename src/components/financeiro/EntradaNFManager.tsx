@@ -12,6 +12,7 @@ interface ItemNF {
   quantidade: number
   unidade: string
   valorUnitario: number
+  planoContasId: string
 }
 
 interface EntradaNFManagerProps {
@@ -25,8 +26,7 @@ interface EntradaNFManagerProps {
     fornecedorId: string
     fornecedorNome: string
     unidadeId?: string
-    planoContasId?: string
-    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; valorUnitario: number }[]
+    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; valorUnitario: number; planoContasId?: string; planoContasNome?: string }[]
     totalNF: number
     numParcelas: number
     dataVencimento: string
@@ -44,11 +44,10 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
   const [dataDocumento, setDataDocumento] = useState('')
   const [fornecedorId, setFornecedorId] = useState('')
   const [unidadeId, setUnidadeId] = useState('')
-  const [planoContasId, setPlanoContasId] = useState('')
   const [dataVencimento, setDataVencimento] = useState('')
   const [numParcelas, setNumParcelas] = useState(1)
   const [items, setItems] = useState<ItemNF[]>([
-    { id: 1, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0 },
+    { id: 1, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0, planoContasId: '' },
   ])
   const [nextId, setNextId] = useState(2)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -77,7 +76,7 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
   )
 
   const addLine = () => {
-    setItems([...items, { id: nextId, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0 }])
+    setItems([...items, { id: nextId, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0, planoContasId: '' }])
     setNextId(nextId + 1)
   }
 
@@ -109,12 +108,15 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
     const forn = activeFornecedores.find(f => f.id === fornecedorId)
     const submitItems = itensValidos.map(item => {
       const prod = produtosAtivos.find(p => p.id === item.produtoId)!
+      const plano = activePlano.find(p => p.id === item.planoContasId)
       return {
         produtoId: item.produtoId,
         produtoNome: prod.nome,
         quantidade: item.quantidade,
         unidade: item.unidade || prod.unidadeMedida,
         valorUnitario: item.valorUnitario,
+        planoContasId: item.planoContasId || undefined,
+        planoContasNome: plano?.nome,
       }
     })
 
@@ -125,7 +127,6 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
         fornecedorId,
         fornecedorNome: forn?.nome || '',
         unidadeId: unidadeId || undefined,
-        planoContasId: planoContasId || undefined,
         itens: submitItems,
         totalNF,
         numParcelas,
@@ -138,7 +139,7 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
       setFornecedorId('')
       setDataVencimento('')
       setNumParcelas(1)
-      setItems([{ id: nextId, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0 }])
+      setItems([{ id: nextId, produtoId: '', quantidade: 1, unidade: '', valorUnitario: 0, planoContasId: '' }])
       setNextId(nextId + 1)
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 4000)
@@ -223,19 +224,6 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
               </select>
             </div>
           )}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Plano de contas</label>
-            <select
-              value={planoContasId}
-              onChange={e => setPlanoContasId(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300"
-            >
-              <option value="">Selecione...</option>
-              {activePlano.map(p => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Itens da NF */}
@@ -246,85 +234,91 @@ export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades
           </div>
 
           <div className="space-y-2">
-            <div className="hidden sm:grid grid-cols-[1fr_80px_100px_100px_80px_32px] gap-2 px-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Produto</span>
-              <span className="text-xs font-semibold text-gray-500 uppercase">Qtd</span>
-              <span className="text-xs font-semibold text-gray-500 uppercase">Unidade</span>
-              <span className="text-xs font-semibold text-gray-500 uppercase">Valor Unit.</span>
-              <span className="text-xs font-semibold text-gray-500 uppercase text-right">Subtotal</span>
-              <span></span>
-            </div>
-
             {items.map((item, index) => {
               const selectedProd = produtosAtivos.find(p => p.id === item.produtoId)
               const subtotal = item.quantidade * item.valorUnitario
               return (
-                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr_80px_100px_100px_80px_32px] gap-2 items-center p-2 sm:p-0 bg-gray-50 sm:bg-transparent rounded-lg sm:rounded-none">
-                  <div>
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Produto</span>}
+                <div key={item.id} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                  {/* Linha 1: Produto + Qtd + Unidade + Valor + Subtotal + Remover */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_70px_90px_90px_80px_32px] gap-2 items-center">
+                    <div>
+                      {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Produto</span>}
+                      <select
+                        value={item.produtoId}
+                        onChange={e => updateLine(item.id, 'produtoId', e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300"
+                      >
+                        <option value="">Selecione o produto...</option>
+                        {grouped.map(g => (
+                          <optgroup key={g.cat} label={g.label}>
+                            {g.prods.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 sm:hidden block">Qtd</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={item.quantidade}
+                        onChange={e => updateLine(item.id, 'quantidade', Math.max(0.01, parseFloat(e.target.value) || 0))}
+                        className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:border-teal-300"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 sm:hidden block">Unidade</span>
+                      <input
+                        type="text"
+                        value={selectedProd ? selectedProd.unidadeMedida : item.unidade}
+                        readOnly
+                        className="w-full px-2 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 sm:hidden block">Valor Unit.</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.valorUnitario || ''}
+                        onChange={e => updateLine(item.id, 'valorUnitario', Math.max(0, parseFloat(e.target.value) || 0))}
+                        placeholder="R$"
+                        className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:border-teal-300"
+                      />
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-medium text-gray-700">
+                        {subtotal > 0 ? formatCurrency(subtotal) : '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => removeLine(item.id)}
+                        disabled={items.length <= 1}
+                        className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {/* Linha 2: Plano de contas do item */}
+                  <div className="sm:pl-0">
                     <select
-                      value={item.produtoId}
-                      onChange={e => updateLine(item.id, 'produtoId', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300"
+                      value={item.planoContasId}
+                      onChange={e => updateLine(item.id, 'planoContasId', e.target.value)}
+                      className="w-full sm:w-64 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:border-teal-300"
                     >
-                      <option value="">Selecione...</option>
-                      {grouped.map(g => (
-                        <optgroup key={g.cat} label={g.label}>
-                          {g.prods.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
-                            </option>
-                          ))}
-                        </optgroup>
+                      <option value="">Plano de contas (opcional)</option>
+                      {activePlano.map(p => (
+                        <option key={p.id} value={p.id}>{p.nome}</option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Qtd</span>}
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={item.quantidade}
-                      onChange={e => updateLine(item.id, 'quantidade', Math.max(0.01, parseFloat(e.target.value) || 0))}
-                      className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:border-teal-300"
-                    />
-                  </div>
-                  <div>
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Unidade</span>}
-                    <input
-                      type="text"
-                      value={selectedProd ? selectedProd.unidadeMedida : item.unidade}
-                      readOnly
-                      className="w-full px-2 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Valor Unit.</span>}
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.valorUnitario || ''}
-                      onChange={e => updateLine(item.id, 'valorUnitario', Math.max(0, parseFloat(e.target.value) || 0))}
-                      placeholder="R$"
-                      className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:border-teal-300"
-                    />
-                  </div>
-                  <div className="text-right">
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Subtotal</span>}
-                    <span className="text-sm font-medium text-gray-700">
-                      {subtotal > 0 ? formatCurrency(subtotal) : '-'}
-                    </span>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => removeLine(item.id)}
-                      disabled={items.length <= 1}
-                      className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </div>
               )
