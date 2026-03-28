@@ -93,7 +93,9 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         {/* Footer */}
         <div className="p-4 border-t border-[#FCE4EC]">
           <div className="bg-[#FCE4EC] rounded-xl p-3">
-            <p className="text-xs font-semibold text-[#E91E63]">Março 2025</p>
+            <p className="text-xs font-semibold text-[#E91E63]">
+              {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())}
+            </p>
             <p className="text-xs text-gray-500 mt-0.5">Dados atualizados agora</p>
             <div className="mt-2 flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
