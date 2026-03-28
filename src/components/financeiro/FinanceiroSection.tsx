@@ -6,6 +6,7 @@ import { PlanoContasView } from './PlanoContasView'
 import { CustoFixoManager } from './CustoFixoManager'
 import { ContasManager } from './ContasManager'
 import type { PlanoContas, Fornecedor, CustoFixo, Conta, SituacaoConta } from '@/data/financeData'
+import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 
 type FinTab = 'contas_pagar' | 'custos_fixos' | 'fornecedores' | 'plano_contas'
@@ -17,7 +18,11 @@ const tabs: { id: FinTab; label: string; icon: React.ReactNode }[] = [
   { id: 'plano_contas', label: 'Plano de Contas', icon: <BookOpen size={16} /> },
 ]
 
-export function FinanceiroSection() {
+interface FinanceiroSectionProps {
+  unidades?: Unidade[]
+}
+
+export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
   const [activeTab, setActiveTab] = useState<FinTab>('contas_pagar')
   const [planoContas, setPlanoContas] = useState<PlanoContas[]>([])
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
@@ -60,7 +65,7 @@ export function FinanceiroSection() {
 
       // Contas
       const { data: ctData, error: ctErr } = await supabase
-        .from('contas').select('*, plano_contas(nome), fornecedores(nome)').order('data_vencimento')
+        .from('contas').select('*, plano_contas(nome), fornecedores(nome), unidades(nome)').order('data_vencimento')
       if (ctErr) throw ctErr
       setContas((ctData || []).map((c: Record<string, unknown>) => ({
         id: c.id as string, descricao: c.descricao as string, valor: Number(c.valor),
@@ -70,7 +75,11 @@ export function FinanceiroSection() {
         planoContasNome: (c.plano_contas as Record<string, string> | null)?.nome,
         fornecedorId: (c.fornecedor_id as string) || undefined,
         fornecedorNome: (c.fornecedores as Record<string, string> | null)?.nome,
+        unidadeId: (c.unidade_id as string) || undefined,
+        unidadeNome: (c.unidades as Record<string, string> | null)?.nome,
+        numeroNF: (c.numero_nf as string) || undefined,
         tipoPagamento: (c.tipo_pagamento as string) || undefined, parcela: (c.parcela as string) || undefined,
+        totalParcelas: (c.total_parcelas as number) || undefined,
         situacao: c.situacao as SituacaoConta, recorrente: c.recorrente as boolean,
         mesReferencia: c.mes_referencia as number, anoReferencia: c.ano_referencia as number,
         origem: c.origem as 'plataforma' | 'importado',
@@ -153,17 +162,27 @@ export function FinanceiroSection() {
       const { data, error } = await supabase.from('contas').insert({
         descricao: c.descricao, valor: c.valor, data_documento: c.dataDocumento || null,
         data_vencimento: c.dataVencimento, plano_contas_id: c.planoContasId || null,
-        fornecedor_id: c.fornecedorId || null, tipo_pagamento: c.tipoPagamento || null,
-        parcela: c.parcela || null, situacao: c.situacao, recorrente: c.recorrente,
+        fornecedor_id: c.fornecedorId || null, unidade_id: c.unidadeId || null,
+        numero_nf: c.numeroNF || null, tipo_pagamento: c.tipoPagamento || null,
+        parcela: c.parcela || null, total_parcelas: c.totalParcelas || null,
+        situacao: c.situacao, recorrente: c.recorrente,
         mes_referencia: c.mesReferencia, ano_referencia: c.anoReferencia,
-      }).select('*, plano_contas(nome), fornecedores(nome)').single()
+      }).select('*, plano_contas(nome), fornecedores(nome), unidades(nome)').single()
       if (!error && data) {
         setContas(prev => [...prev, {
           ...c, id: data.id,
           planoContasNome: data.plano_contas?.nome,
           fornecedorNome: data.fornecedores?.nome,
+          unidadeNome: data.unidades?.nome,
         }])
       }
+    }
+  }
+
+  // Handler para adicionar multiplas parcelas de uma vez
+  const handleAddContaParcelada = async (contas: Omit<Conta, 'id'>[]) => {
+    for (const c of contas) {
+      await handleAddConta(c)
     }
   }
 
@@ -212,7 +231,8 @@ export function FinanceiroSection() {
 
       {activeTab === 'contas_pagar' && (
         <ContasManager contas={contas} planoContas={planoContas} fornecedores={fornecedores}
-          onAdd={handleAddConta} onUpdateSituacao={handleUpdateSituacao} />
+          unidades={unidades} onAdd={handleAddConta} onAddParcelada={handleAddContaParcelada}
+          onUpdateSituacao={handleUpdateSituacao} />
       )}
       {activeTab === 'custos_fixos' && (
         <CustoFixoManager custosFixos={custosFixos} planoContas={planoContas} fornecedores={fornecedores}

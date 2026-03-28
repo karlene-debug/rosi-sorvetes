@@ -1,44 +1,45 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, Users, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen } from 'lucide-react'
+import { Send, Factory, BarChart3, List, IceCream, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
+import { MontagemForm } from './MontagemForm'
 import { StockDashboard } from './StockDashboard'
 import { StockMovements } from './StockMovements'
 import { FlavorManager } from './FlavorManager'
-import { ColaboradorManager } from './ColaboradorManager'
 import { InventoryModule } from './InventoryModule'
 import { DataImportTool } from './DataImportTool'
 import { ProductManager } from './ProductManager'
 import { ReceitasManager } from './ReceitasManager'
-import type { Flavor, StockMovement, Colaborador, InventoryCount } from '@/data/stockData'
+import type { Flavor, StockMovement, InventoryCount } from '@/data/stockData'
 import type { Produto } from '@/data/productTypes'
-import { initialFlavors, initialMovements, initialColaboradores, initialInventories, getActiveColaboradores } from '@/data/stockData'
+import { initialFlavors, initialMovements, initialInventories } from '@/data/stockData'
+import { supabase } from '@/lib/supabase'
 import * as db from '@/lib/database'
 import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores' | 'colaboradores'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
   { id: 'saida', label: 'Saida p/ Balcao', icon: <Send size={16} /> },
   { id: 'producao', label: 'Producao', icon: <Factory size={16} /> },
+  { id: 'montagem', label: 'Montagem', icon: <Layers size={16} /> },
   { id: 'receitas', label: 'Receitas', icon: <BookOpen size={16} /> },
   { id: 'inventario', label: 'Inventario', icon: <ClipboardCheck size={16} /> },
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
   { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} /> },
   { id: 'produtos', label: 'Produtos', icon: <Package size={16} /> },
   { id: 'sabores', label: 'Sabores', icon: <IceCream size={16} /> },
-  { id: 'colaboradores', label: 'Equipe', icon: <Users size={16} /> },
 ]
 
 export function EstoqueSection() {
   const [activeTab, setActiveTab] = useState<EstoqueTab>('indicadores')
   const [flavors, setFlavors] = useState<Flavor[]>(initialFlavors)
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements)
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>(initialColaboradores)
   const [inventories, setInventories] = useState<InventoryCount[]>(initialInventories)
   const [produtos, setProdutos] = useState<Produto[]>([])
+  const [nomesFuncionarios, setNomesFuncionarios] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [useSupabase, setUseSupabase] = useState(false)
 
@@ -53,19 +54,31 @@ export function EstoqueSection() {
       }
       setUseSupabase(true)
 
-      const [sabores, colabs, movs, invs] = await Promise.all([
+      const [sabores, movs, invs] = await Promise.all([
         db.fetchSabores(),
-        db.fetchColaboradores(),
         db.fetchMovimentacoes(),
         db.fetchInventarios(),
       ])
 
       setFlavors(sabores.length > 0 ? sabores : initialFlavors)
-      setColaboradores(colabs.length > 0 ? colabs : initialColaboradores)
       setMovements(movs.length > 0 ? movs : initialMovements)
       setInventories(invs.length > 0 ? invs : initialInventories)
 
-      // Tenta carregar produtos da v2
+      // Carregar funcionarios ativos (modulo Pessoas) para usar como responsaveis
+      try {
+        const { data: funcData } = await supabase
+          .from('funcionarios')
+          .select('nome')
+          .eq('status', 'ativo')
+          .order('nome')
+        if (funcData && funcData.length > 0) {
+          setNomesFuncionarios(funcData.map(f => f.nome))
+        }
+      } catch {
+        // Tabela funcionarios pode nao existir ainda
+      }
+
+      // Carregar produtos v2
       try {
         const prods = await dbV2.fetchProdutos()
         setProdutos(prods)
@@ -80,8 +93,6 @@ export function EstoqueSection() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
-
-  const activeNames = getActiveColaboradores(colaboradores)
 
   // === HANDLERS COM SUPABASE ===
 
@@ -123,6 +134,78 @@ export function EstoqueSection() {
     }
   }
 
+  // Handler montagem: saida dos primarios + entrada do derivado
+  const handleMontagem = async (
+    derivadoId: string,
+    derivadoNome: string,
+    quantidade: number,
+    unidade: string,
+    ingredientes: { produtoId: string; produtoNome: string; quantidade: number; unidade: string }[],
+    responsavel: string,
+  ) => {
+    const now = new Date().toISOString()
+    const localMovements: StockMovement[] = []
+
+    // Saida dos ingredientes
+    ingredientes.forEach((ing, idx) => {
+      localMovements.push({
+        id: `local_${Date.now()}_out_${idx}`,
+        data: now,
+        saborId: ing.produtoId,
+        sabor: ing.produtoNome,
+        quantidade: ing.quantidade * quantidade,
+        unidade: ing.unidade as StockMovement['unidade'],
+        tipo: 'saida',
+        responsavel,
+        origem: 'plataforma' as const,
+      })
+    })
+
+    // Entrada do derivado
+    localMovements.push({
+      id: `local_${Date.now()}_in`,
+      data: now,
+      saborId: derivadoId,
+      sabor: derivadoNome,
+      quantidade,
+      unidade: unidade as StockMovement['unidade'],
+      tipo: 'producao',
+      responsavel,
+      origem: 'plataforma' as const,
+    })
+
+    setMovements(prev => [...localMovements, ...prev])
+
+    if (useSupabase) {
+      try {
+        // Registrar saida de cada ingrediente
+        await Promise.all(ingredientes.map(ing =>
+          dbV2.insertMovimentacaoV2({
+            produto_id: ing.produtoId,
+            quantidade: ing.quantidade * quantidade,
+            unidade: ing.unidade,
+            tipo: 'montagem_saida',
+            destino: 'montagem',
+            responsavel,
+            observacao: `Montagem: ${derivadoNome}`,
+          })
+        ))
+
+        // Registrar entrada do derivado
+        await dbV2.insertMovimentacaoV2({
+          produto_id: derivadoId,
+          quantidade,
+          unidade,
+          tipo: 'montagem_entrada',
+          responsavel,
+          observacao: `Montagem de ${quantidade}x ${derivadoNome}`,
+        })
+      } catch (err) {
+        console.error('Erro ao salvar montagem:', err)
+      }
+    }
+  }
+
   const handleAddFlavor = async (flavor: Flavor) => {
     if (useSupabase) {
       try {
@@ -153,39 +236,6 @@ export function EstoqueSection() {
         await db.toggleSaborStatus(id, flavor.status)
       } catch (err) {
         console.error('Erro ao atualizar sabor:', err)
-      }
-    }
-  }
-
-  const handleAddColaborador = async (colaborador: Colaborador) => {
-    if (useSupabase) {
-      try {
-        const saved = await db.insertColaborador(colaborador.nome)
-        setColaboradores(prev => [...prev, saved])
-        return
-      } catch (err) {
-        console.error('Erro ao salvar colaborador:', err)
-      }
-    }
-    setColaboradores(prev => [...prev, colaborador])
-  }
-
-  const handleToggleColaboradorStatus = async (id: string) => {
-    const colab = colaboradores.find(c => c.id === id)
-    if (!colab) return
-
-    setColaboradores(prev => prev.map(c =>
-      c.id === id ? {
-        ...c,
-        status: c.status === 'ativo' ? 'inativo' : 'ativo',
-        desativadoEm: c.status === 'ativo' ? new Date().toISOString().split('T')[0] : undefined,
-      } : c
-    ))
-    if (useSupabase) {
-      try {
-        await db.toggleColaboradorStatus(id, colab.status)
-      } catch (err) {
-        console.error('Erro ao atualizar colaborador:', err)
       }
     }
   }
@@ -271,15 +321,22 @@ export function EstoqueSection() {
       {activeTab === 'saida' && (
         <StockExitForm
           produtos={produtos}
-          colaboradores={activeNames}
+          colaboradores={nomesFuncionarios}
           onSubmit={(items) => handleAddMovementsV2('saida', items)}
         />
       )}
       {activeTab === 'producao' && (
         <ProductionForm
           produtos={produtos}
-          colaboradores={activeNames}
+          colaboradores={nomesFuncionarios}
           onSubmit={(items) => handleAddMovementsV2('producao', items)}
+        />
+      )}
+      {activeTab === 'montagem' && (
+        <MontagemForm
+          produtos={produtos}
+          colaboradores={nomesFuncionarios}
+          onSubmit={handleMontagem}
         />
       )}
       {activeTab === 'receitas' && (
@@ -290,7 +347,7 @@ export function EstoqueSection() {
           flavors={flavors}
           movements={movements}
           inventories={inventories}
-          colaboradores={activeNames}
+          colaboradores={nomesFuncionarios}
           onSaveInventory={handleSaveInventory}
         />
       )}
@@ -315,13 +372,6 @@ export function EstoqueSection() {
           flavors={flavors}
           onAddFlavor={handleAddFlavor}
           onToggleStatus={handleToggleFlavorStatus}
-        />
-      )}
-      {activeTab === 'colaboradores' && (
-        <ColaboradorManager
-          colaboradores={colaboradores}
-          onAdd={handleAddColaborador}
-          onToggleStatus={handleToggleColaboradorStatus}
         />
       )}
     </div>

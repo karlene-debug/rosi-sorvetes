@@ -50,8 +50,12 @@ export interface Conta {
   planoContasNome?: string
   fornecedorId?: string
   fornecedorNome?: string
+  unidadeId?: string
+  unidadeNome?: string
+  numeroNF?: string
   tipoPagamento?: string
   parcela?: string
+  totalParcelas?: number
   situacao: SituacaoConta
   recorrente: boolean
   mesReferencia?: number

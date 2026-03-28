@@ -101,7 +101,7 @@ function App() {
 
           {/* Financeiro */}
           {activeSection === 'financeiro' && (
-            <FinanceiroSection />
+            <FinanceiroSection unidades={unidades} />
           )}
 
           {/* Pessoas */}
