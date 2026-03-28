@@ -1,18 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Building, BookOpen, RefreshCw, FileText, Loader2, WifiOff } from 'lucide-react'
+import { Building, BookOpen, RefreshCw, FileText, Loader2, WifiOff, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FornecedorManager } from './FornecedorManager'
 import { PlanoContasView } from './PlanoContasView'
 import { CustoFixoManager } from './CustoFixoManager'
 import { ContasManager } from './ContasManager'
+import { EntradaNFManager } from './EntradaNFManager'
 import type { PlanoContas, Fornecedor, CustoFixo, Conta, SituacaoConta } from '@/data/financeData'
-import type { Unidade } from '@/data/productTypes'
+import type { Unidade, Produto } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
+import * as dbV2 from '@/lib/database_v2'
 
-type FinTab = 'contas_pagar' | 'custos_fixos' | 'fornecedores' | 'plano_contas'
+type FinTab = 'contas_pagar' | 'entrada_nf' | 'custos_fixos' | 'fornecedores' | 'plano_contas'
 
 const tabs: { id: FinTab; label: string; icon: React.ReactNode }[] = [
   { id: 'contas_pagar', label: 'Contas a Pagar', icon: <FileText size={16} /> },
+  { id: 'entrada_nf', label: 'Entrada NF', icon: <ShoppingCart size={16} /> },
   { id: 'custos_fixos', label: 'Custos Fixos', icon: <RefreshCw size={16} /> },
   { id: 'fornecedores', label: 'Fornecedores', icon: <Building size={16} /> },
   { id: 'plano_contas', label: 'Plano de Contas', icon: <BookOpen size={16} /> },
@@ -28,6 +31,7 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [custosFixos, setCustosFixos] = useState<CustoFixo[]>([])
   const [contas, setContas] = useState<Conta[]>([])
+  const [produtos, setProdutos] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
   const [useDb, setUseDb] = useState(false)
 
@@ -84,6 +88,14 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
         mesReferencia: c.mes_referencia as number, anoReferencia: c.ano_referencia as number,
         origem: c.origem as 'plataforma' | 'importado',
       })))
+
+      // Produtos (para entrada de NF)
+      try {
+        const prods = await dbV2.fetchProdutos()
+        setProdutos(prods)
+      } catch {
+        // Tabela pode nao existir
+      }
 
       setUseDb(true)
     } catch {
@@ -186,6 +198,96 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
     }
   }
 
+  // Handler para entrada de NF: cria movimentacoes de estoque + contas a pagar
+  const handleEntradaNF = async (data: {
+    numeroNF: string
+    dataDocumento: string
+    fornecedorId: string
+    fornecedorNome: string
+    unidadeId?: string
+    planoContasId?: string
+    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; valorUnitario: number }[]
+    totalNF: number
+    numParcelas: number
+    dataVencimento: string
+  }) => {
+    if (!useDb) return
+
+    // 1. Dar entrada no estoque de cada item
+    for (const item of data.itens) {
+      await dbV2.insertMovimentacaoV2({
+        produto_id: item.produtoId,
+        quantidade: item.quantidade,
+        unidade: item.unidade,
+        tipo: 'producao', // entrada
+        unidade_destino_id: data.unidadeId,
+        responsavel: 'NF ' + data.numeroNF,
+        origem: 'plataforma',
+        observacao: `NF ${data.numeroNF} - ${data.fornecedorNome}`,
+      })
+    }
+
+    // 2. Criar conta(s) a pagar
+    const descNF = `NF ${data.numeroNF} - ${data.fornecedorNome}`
+    const plano = activePlanoContas.find(p => p.id === data.planoContasId)
+    const unid = activeUnidades.find(u => u.id === data.unidadeId)
+
+    if (data.numParcelas > 1) {
+      const valorParcela = Math.round((data.totalNF / data.numParcelas) * 100) / 100
+      for (let i = 0; i < data.numParcelas; i++) {
+        const vencDate = new Date(data.dataVencimento + 'T12:00:00')
+        vencDate.setMonth(vencDate.getMonth() + i)
+        const vlr = i === data.numParcelas - 1
+          ? data.totalNF - valorParcela * (data.numParcelas - 1)
+          : valorParcela
+        await handleAddConta({
+          descricao: descNF,
+          valor: vlr,
+          dataDocumento: data.dataDocumento,
+          dataVencimento: vencDate.toISOString().split('T')[0],
+          planoContasId: data.planoContasId,
+          planoContasNome: plano?.nome,
+          fornecedorId: data.fornecedorId,
+          fornecedorNome: data.fornecedorNome,
+          unidadeId: data.unidadeId,
+          unidadeNome: unid?.nome,
+          numeroNF: data.numeroNF,
+          parcela: `${i + 1}/${data.numParcelas}`,
+          totalParcelas: data.numParcelas,
+          situacao: 'pendente',
+          recorrente: false,
+          mesReferencia: vencDate.getMonth() + 1,
+          anoReferencia: vencDate.getFullYear(),
+          origem: 'plataforma',
+        })
+      }
+    } else {
+      const vencDate = new Date(data.dataVencimento + 'T12:00:00')
+      await handleAddConta({
+        descricao: descNF,
+        valor: data.totalNF,
+        dataDocumento: data.dataDocumento,
+        dataVencimento: data.dataVencimento,
+        planoContasId: data.planoContasId,
+        planoContasNome: plano?.nome,
+        fornecedorId: data.fornecedorId,
+        fornecedorNome: data.fornecedorNome,
+        unidadeId: data.unidadeId,
+        unidadeNome: unid?.nome,
+        numeroNF: data.numeroNF,
+        situacao: 'pendente',
+        recorrente: false,
+        mesReferencia: vencDate.getMonth() + 1,
+        anoReferencia: vencDate.getFullYear(),
+        origem: 'plataforma',
+      })
+    }
+  }
+
+  // Helpers para o handler de NF
+  const activePlanoContas = planoContas.filter(p => p.status === 'ativo')
+  const activeUnidades = unidades.filter(u => u.status === 'ativo')
+
   const handleUpdateSituacao = async (id: string, situacao: SituacaoConta) => {
     setContas(prev => prev.map(c => c.id === id ? {
       ...c, situacao, dataPagamento: situacao === 'pago' ? new Date().toISOString().split('T')[0] : undefined,
@@ -233,6 +335,15 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
         <ContasManager contas={contas} planoContas={planoContas} fornecedores={fornecedores}
           unidades={unidades} onAdd={handleAddConta} onAddParcelada={handleAddContaParcelada}
           onUpdateSituacao={handleUpdateSituacao} />
+      )}
+      {activeTab === 'entrada_nf' && (
+        <EntradaNFManager
+          produtos={produtos}
+          fornecedores={fornecedores}
+          planoContas={planoContas}
+          unidades={unidades}
+          onSubmit={handleEntradaNF}
+        />
       )}
       {activeTab === 'custos_fixos' && (
         <CustoFixoManager custosFixos={custosFixos} planoContas={planoContas} fornecedores={fornecedores}
