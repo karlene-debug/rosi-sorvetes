@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Package, Search, ChevronDown, ChevronUp, Eye, EyeOff, Plus, X } from 'lucide-react'
+import { Package, Search, ChevronDown, ChevronUp, Eye, EyeOff, Plus, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import type { Produto, CategoriaProduto, SubcategoriaSorvete, TipoProducao } from '@/data/productTypes'
 import { categoriaLabels, tipoProducaoLabels } from '@/data/productTypes'
 
@@ -13,18 +13,69 @@ const subcategoriaLabels: Record<SubcategoriaSorvete, string> = {
 
 const unidadesMedidaComuns = ['Balde', 'Caixa de 5 L', 'Unidade', 'Kg', 'Litro', 'Pacote', 'Caixa', 'Garrafa', 'Galao', 'Pote']
 
+// Prefixo de codigo por categoria (padrao existente)
+const categoriaPrefixo: Record<CategoriaProduto, string> = {
+  sorvete: 'SRV',
+  bolo: 'BLO',
+  acai: 'ACA',
+  milkshake: 'MLK',
+  taca: 'TAC',
+  calda: 'CLD',
+  cobertura: 'COB',
+  complemento: 'CMP',
+  descartavel: 'DES',
+  bebida: 'BEB',
+  insumo: 'MP',
+  embalagem: 'EMB',
+  limpeza: 'LIM',
+  outros: 'OUT',
+}
+
+function gerarProximoCodigo(categoria: CategoriaProduto, produtos: Produto[]): string {
+  const prefixo = categoriaPrefixo[categoria]
+  const existentes = produtos
+    .filter(p => p.codigo && p.codigo.startsWith(prefixo + '-'))
+    .map(p => {
+      const num = parseInt(p.codigo!.split('-')[1])
+      return isNaN(num) ? 0 : num
+    })
+  const max = existentes.length > 0 ? Math.max(...existentes) : 0
+  return `${prefixo}-${String(max + 1).padStart(3, '0')}`
+}
+
+// Unidade de medida padrao por categoria
+const unidadePadraoPorCategoria: Partial<Record<CategoriaProduto, string>> = {
+  sorvete: 'Balde',
+  bolo: 'Unidade',
+  acai: 'Kg',
+  milkshake: 'Unidade',
+  taca: 'Unidade',
+  calda: 'Unidade',
+  cobertura: 'Unidade',
+  complemento: 'Pacote',
+  descartavel: 'Unidade',
+  bebida: 'Unidade',
+  insumo: 'Kg',
+  embalagem: 'Unidade',
+  limpeza: 'Unidade',
+}
+
 interface ProductManagerProps {
   produtos: Produto[]
   onToggleStatus: (id: string) => void
   onAdd?: (p: Omit<Produto, 'id' | 'criadoEm'>) => void
+  onUpdate?: (id: string, updates: Partial<Produto>) => void
+  onDelete?: (id: string) => Promise<{ ok: boolean; motivo?: string }>
 }
 
-export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManagerProps) {
+export function ProductManager({ produtos, onToggleStatus, onAdd, onUpdate, onDelete }: ProductManagerProps) {
   const [search, setSearch] = useState('')
   const [categoriaFilter, setCategoriaFilter] = useState<CategoriaProduto | 'all'>('all')
   const [showInativos, setShowInativos] = useState(false)
   const [expandedCat, setExpandedCat] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null)
 
   // Form state
   const [nome, setNome] = useState('')
@@ -34,7 +85,6 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
   const [tipoProducao, setTipoProducao] = useState<TipoProducao | ''>('')
   const [unidadeMedida, setUnidadeMedida] = useState('Balde')
   const [precoVenda, setPrecoVenda] = useState('')
-  const [custoMedio, setCustoMedio] = useState('')
   const [pesoKg, setPesoKg] = useState('')
 
   const filtered = useMemo(() => {
@@ -68,33 +118,89 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
 
   const resetForm = () => {
     setNome(''); setCodigo(''); setCategoria('sorvete'); setSubcategoria('')
-    setTipoProducao(''); setUnidadeMedida('Balde'); setPrecoVenda(''); setCustoMedio(''); setPesoKg('')
-    setShowForm(false)
+    setTipoProducao(''); setUnidadeMedida('Balde'); setPrecoVenda(''); setPesoKg('')
+    setShowForm(false); setEditingId(null)
   }
 
-  const handleAdd = () => {
-    if (!nome.trim() || !onAdd) return
+  const openNewForm = () => {
+    resetForm()
+    const cat: CategoriaProduto = 'sorvete'
+    setCodigo(gerarProximoCodigo(cat, produtos))
+    setUnidadeMedida(unidadePadraoPorCategoria[cat] || 'Balde')
+    setShowForm(true)
+  }
 
-    const exists = produtos.some(p => p.nome.toLowerCase() === nome.trim().toLowerCase())
-    if (exists) {
-      alert('Ja existe um produto com esse nome!')
-      return
+  const handleCategoriaChange = (cat: CategoriaProduto) => {
+    setCategoria(cat)
+    if (!editingId) {
+      setCodigo(gerarProximoCodigo(cat, produtos))
+    }
+    setUnidadeMedida(unidadePadraoPorCategoria[cat] || 'Unidade')
+    if (cat !== 'sorvete') setSubcategoria('')
+  }
+
+  const openEditForm = (p: Produto) => {
+    setEditingId(p.id)
+    setNome(p.nome)
+    setCodigo(p.codigo || '')
+    setCategoria(p.categoria)
+    setSubcategoria(p.subcategoria || '')
+    setTipoProducao(p.tipoProducao || '')
+    setUnidadeMedida(p.unidadeMedida)
+    setPrecoVenda(p.precoVenda ? String(p.precoVenda) : '')
+    setPesoKg(p.pesoKg ? String(p.pesoKg) : '')
+    setShowForm(true)
+  }
+
+  const handleSubmit = () => {
+    if (!nome.trim()) return
+
+    if (editingId) {
+      // Editar
+      if (onUpdate) {
+        onUpdate(editingId, {
+          nome: nome.trim(),
+          codigo: codigo.trim() || undefined,
+          categoria,
+          subcategoria: (categoria === 'sorvete' && subcategoria) ? subcategoria as SubcategoriaSorvete : undefined,
+          tipoProducao: tipoProducao ? tipoProducao as TipoProducao : undefined,
+          unidadeMedida,
+          precoVenda: precoVenda ? parseFloat(precoVenda) : undefined,
+          pesoKg: pesoKg ? parseFloat(pesoKg) : undefined,
+        })
+      }
+    } else {
+      // Novo
+      if (!onAdd) return
+      const exists = produtos.some(p => p.nome.toLowerCase() === nome.trim().toLowerCase())
+      if (exists) {
+        alert('Ja existe um produto com esse nome!')
+        return
+      }
+      onAdd({
+        nome: nome.trim(),
+        codigo: codigo.trim() || undefined,
+        categoria,
+        subcategoria: (categoria === 'sorvete' && subcategoria) ? subcategoria as SubcategoriaSorvete : undefined,
+        tipoProducao: tipoProducao ? tipoProducao as TipoProducao : undefined,
+        unidadeMedida,
+        precoVenda: precoVenda ? parseFloat(precoVenda) : undefined,
+        pesoKg: pesoKg ? parseFloat(pesoKg) : undefined,
+        status: 'ativo',
+      })
     }
 
-    onAdd({
-      nome: nome.trim(),
-      codigo: codigo.trim() || undefined,
-      categoria,
-      subcategoria: (categoria === 'sorvete' && subcategoria) ? subcategoria as SubcategoriaSorvete : undefined,
-      tipoProducao: tipoProducao ? tipoProducao as TipoProducao : undefined,
-      unidadeMedida,
-      precoVenda: precoVenda ? parseFloat(precoVenda) : undefined,
-      custoMedio: custoMedio ? parseFloat(custoMedio) : undefined,
-      pesoKg: pesoKg ? parseFloat(pesoKg) : undefined,
-      status: 'ativo',
-    })
-
     resetForm()
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!onDelete) return
+    setDeleteError(null)
+    const result = await onDelete(id)
+    if (!result.ok) {
+      setDeleteError({ id, msg: result.motivo || 'Nao foi possivel apagar este produto.' })
+      setTimeout(() => setDeleteError(null), 5000)
+    }
   }
 
   return (
@@ -112,7 +218,7 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
           </div>
           {onAdd && (
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => showForm ? resetForm() : openNewForm()}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
             >
               {showForm ? <X size={16} /> : <Plus size={16} />}
@@ -121,10 +227,12 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
           )}
         </div>
 
-        {/* Formulario de cadastro */}
+        {/* Formulario de cadastro / edicao */}
         {showForm && (
           <div className="mb-5 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Cadastrar novo produto</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">
+              {editingId ? 'Editar produto' : 'Cadastrar novo produto'}
+            </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
@@ -138,20 +246,20 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Codigo</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Codigo (automatico)</label>
                 <input
                   type="text"
                   value={codigo}
                   onChange={e => setCodigo(e.target.value)}
-                  placeholder="Ex: MP001"
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-300"
+                  placeholder="Gerado automaticamente"
+                  className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-mono text-gray-600 focus:outline-none focus:border-indigo-300"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Categoria *</label>
                 <select
                   value={categoria}
-                  onChange={e => setCategoria(e.target.value as CategoriaProduto)}
+                  onChange={e => handleCategoriaChange(e.target.value as CategoriaProduto)}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-300"
                 >
                   {allCategorias.map(c => (
@@ -212,18 +320,6 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Custo medio (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={custoMedio}
-                  onChange={e => setCustoMedio(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-300"
-                />
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Peso (Kg)</label>
                 <input
                   type="number"
@@ -238,11 +334,11 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
             </div>
             <div className="mt-3 flex gap-2">
               <button
-                onClick={handleAdd}
+                onClick={handleSubmit}
                 disabled={!nome.trim()}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Cadastrar Produto
+                {editingId ? 'Salvar Alteracoes' : 'Cadastrar Produto'}
               </button>
               <button onClick={resetForm} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
                 Cancelar
@@ -328,23 +424,45 @@ export function ProductManager({ produtos, onToggleStatus, onAdd }: ProductManag
                               · R$ {p.precoVenda.toFixed(2)}
                             </span>
                           )}
-                          {p.custoMedio && (
-                            <span className="text-[10px] text-orange-500">
-                              · Custo R$ {p.custoMedio.toFixed(2)}
-                            </span>
-                          )}
                         </div>
+                        {/* Erro de delete */}
+                        {deleteError?.id === p.id && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                            <AlertTriangle size={12} />
+                            {deleteError.msg}
+                          </div>
+                        )}
                       </div>
-                      <button
-                        onClick={() => onToggleStatus(p.id)}
-                        className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                          p.status === 'ativo'
-                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        {p.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {onUpdate && (
+                          <button
+                            onClick={() => openEditForm(p)}
+                            className="p-1.5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Apagar"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onToggleStatus(p.id)}
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                            p.status === 'ativo'
+                              ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {p.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

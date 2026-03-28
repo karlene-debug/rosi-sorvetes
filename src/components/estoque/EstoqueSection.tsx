@@ -251,6 +251,48 @@ export function EstoqueSection() {
     }
   }
 
+  const handleUpdateProduto = async (id: string, updates: Partial<Produto>) => {
+    setProdutos(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
+    if (useSupabase) {
+      try {
+        await dbV2.updateProduto(id, updates)
+      } catch (err) {
+        console.error('Erro ao atualizar produto:', err)
+      }
+    }
+  }
+
+  const handleDeleteProduto = async (id: string): Promise<{ ok: boolean; motivo?: string }> => {
+    if (!useSupabase) return { ok: false, motivo: 'Sem conexao com banco' }
+    try {
+      // Verificar se tem movimentacoes
+      const { data: movs } = await supabase
+        .from('movimentacoes')
+        .select('id')
+        .or(`produto_id.eq.${id},sabor_id.eq.${id}`)
+        .limit(1)
+      if (movs && movs.length > 0) {
+        return { ok: false, motivo: 'Este produto tem movimentacoes registradas e nao pode ser apagado. Use "Inativo" em vez disso.' }
+      }
+      // Verificar se tem receitas
+      const { data: recs } = await supabase
+        .from('receitas')
+        .select('id')
+        .or(`produto_derivado_id.eq.${id},produto_ingrediente_id.eq.${id}`)
+        .limit(1)
+      if (recs && recs.length > 0) {
+        return { ok: false, motivo: 'Este produto esta vinculado a uma receita e nao pode ser apagado.' }
+      }
+      // Pode apagar
+      const { error } = await supabase.from('produtos').delete().eq('id', id)
+      if (error) return { ok: false, motivo: error.message }
+      setProdutos(prev => prev.filter(p => p.id !== id))
+      return { ok: true }
+    } catch {
+      return { ok: false, motivo: 'Erro ao verificar dependencias' }
+    }
+  }
+
   const handleToggleProdutoStatus = async (id: string) => {
     const prod = produtos.find(p => p.id === id)
     if (!prod) return
@@ -377,6 +419,8 @@ export function EstoqueSection() {
           produtos={produtos}
           onToggleStatus={handleToggleProdutoStatus}
           onAdd={handleAddProduto}
+          onUpdate={handleUpdateProduto}
+          onDelete={handleDeleteProduto}
         />
       )}
       {activeTab === 'sabores' && (
