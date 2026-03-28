@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers } from 'lucide-react'
+import { Send, Factory, BarChart3, List, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
 import { MontagemForm } from './MontagemForm'
+import { TransferenciaForm } from './TransferenciaForm'
 import { StockDashboard } from './StockDashboard'
 import { StockMovements } from './StockMovements'
 import { InventoryModule } from './InventoryModule'
@@ -11,19 +12,20 @@ import { DataImportTool } from './DataImportTool'
 import { ProductManager } from './ProductManager'
 import { ReceitasManager } from './ReceitasManager'
 import type { StockMovement, InventoryCount } from '@/data/stockData'
-import type { Produto } from '@/data/productTypes'
+import type { Produto, Unidade } from '@/data/productTypes'
 import { initialMovements, initialInventories } from '@/data/stockData'
 import { supabase } from '@/lib/supabase'
 import * as db from '@/lib/database'
 import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'transferencia' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
   { id: 'saida', label: 'Saida p/ Balcao', icon: <Send size={16} /> },
   { id: 'producao', label: 'Producao', icon: <Factory size={16} /> },
   { id: 'montagem', label: 'Montagem', icon: <Layers size={16} /> },
+  { id: 'transferencia', label: 'Transferencia', icon: <ArrowRightLeft size={16} /> },
   { id: 'receitas', label: 'Receitas', icon: <BookOpen size={16} /> },
   { id: 'inventario', label: 'Inventario', icon: <ClipboardCheck size={16} /> },
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
@@ -36,6 +38,7 @@ export function EstoqueSection() {
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements)
   const [inventories, setInventories] = useState<InventoryCount[]>(initialInventories)
   const [produtos, setProdutos] = useState<Produto[]>([])
+  const [unidades, setUnidades] = useState<Unidade[]>([])
   const [nomesFuncionarios, setNomesFuncionarios] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [useSupabase, setUseSupabase] = useState(false)
@@ -73,12 +76,16 @@ export function EstoqueSection() {
         // Tabela funcionarios pode nao existir ainda
       }
 
-      // Carregar produtos v2
+      // Carregar produtos e unidades v2
       try {
-        const prods = await dbV2.fetchProdutos()
+        const [prods, unids] = await Promise.all([
+          dbV2.fetchProdutos(),
+          dbV2.fetchUnidades(),
+        ])
         setProdutos(prods)
+        setUnidades(unids)
       } catch {
-        // Tabela produtos pode nao existir ainda
+        // Tabelas podem nao existir ainda
       }
     } catch {
       setUseSupabase(false)
@@ -197,6 +204,54 @@ export function EstoqueSection() {
         })
       } catch (err) {
         console.error('Erro ao salvar montagem:', err)
+      }
+    }
+  }
+
+  // Handler transferencia
+  const handleTransferencia = async (data: {
+    origemId: string
+    destinoId: string
+    responsavel: string
+    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string }[]
+  }) => {
+    const origemNome = unidades.find(u => u.id === data.origemId)?.nome || ''
+    const destinoNome = unidades.find(u => u.id === data.destinoId)?.nome || ''
+    const now = new Date().toISOString()
+
+    // Local state
+    const localMovements: StockMovement[] = []
+    data.itens.forEach((item, idx) => {
+      localMovements.push({
+        id: `local_${Date.now()}_tr_${idx}`,
+        data: now,
+        saborId: item.produtoId,
+        sabor: item.produtoNome,
+        quantidade: item.quantidade,
+        unidade: item.unidade as StockMovement['unidade'],
+        tipo: 'saida',
+        responsavel: data.responsavel,
+        origem: 'plataforma' as const,
+      })
+    })
+    setMovements(prev => [...localMovements, ...prev])
+
+    if (useSupabase) {
+      try {
+        for (const item of data.itens) {
+          await dbV2.insertMovimentacaoV2({
+            produto_id: item.produtoId,
+            quantidade: item.quantidade,
+            unidade: item.unidade,
+            tipo: 'transferencia',
+            unidade_origem_id: data.origemId,
+            unidade_destino_id: data.destinoId,
+            responsavel: data.responsavel,
+            observacao: `Transferencia: ${origemNome} → ${destinoNome}`,
+          })
+        }
+      } catch (err) {
+        console.error('Erro ao salvar transferencia:', err)
       }
     }
   }
@@ -351,6 +406,14 @@ export function EstoqueSection() {
           produtos={produtos}
           colaboradores={nomesFuncionarios}
           onSubmit={handleMontagem}
+        />
+      )}
+      {activeTab === 'transferencia' && (
+        <TransferenciaForm
+          produtos={produtos}
+          unidades={unidades}
+          colaboradores={nomesFuncionarios}
+          onSubmit={handleTransferencia}
         />
       )}
       {activeTab === 'receitas' && (
