@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Sidebar } from '@/components/Sidebar'
-import { KPICards } from '@/components/KPICards'
-import { RevenueChart } from '@/components/RevenueChart'
-import { FixedCosts } from '@/components/FixedCosts'
-import { AccountsPayable } from '@/components/AccountsPayable'
+import { DashboardExecutivo } from '@/components/DashboardExecutivo'
 import { EstoqueSection } from '@/components/estoque/EstoqueSection'
 import { FinanceiroSection } from '@/components/financeiro/FinanceiroSection'
 import { PessoasSection } from '@/components/pessoas/PessoasSection'
@@ -82,29 +79,15 @@ function App() {
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Dashboard */}
           {activeSection === 'dashboard' && (
-            <>
-              <KPICards />
-              <RevenueChart />
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <FixedCosts />
-                <AccountsPayable />
-              </div>
-            </>
+            <DashboardExecutivo unidades={unidades} unidadeSelecionada={unidadeSelecionada} />
           )}
-
-          {/* Estoque */}
           {activeSection === 'estoque' && (
             <EstoqueSection />
           )}
-
-          {/* Financeiro */}
           {activeSection === 'financeiro' && (
             <FinanceiroSection unidades={unidades} />
           )}
-
-          {/* Pessoas */}
           {activeSection === 'pessoas' && (
             <PessoasSection unidades={unidades} />
           )}
@@ -113,7 +96,7 @@ function App() {
         {/* Footer */}
         <footer className="px-6 py-4 border-t border-gray-100 mt-6">
           <p className="text-xs text-gray-400 text-center">
-            © 2025 Rosi Sorvetes Artesanal · Plataforma de Gestao · Todos os direitos reservados
+            © {new Date().getFullYear()} Rosi Sorvetes Artesanal · Plataforma de Gestao
           </p>
         </footer>
       </main>
