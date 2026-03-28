@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers, ArrowRightLeft } from 'lucide-react'
+import { Send, Factory, BarChart3, List, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers, ArrowRightLeft, IceCream, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
@@ -11,6 +11,8 @@ import { InventoryModule } from './InventoryModule'
 import { DataImportTool } from './DataImportTool'
 import { ProductManager } from './ProductManager'
 import { ReceitasManager } from './ReceitasManager'
+import { VitrineDigital } from './VitrineDigital'
+import { AlertasEstoque } from './AlertasEstoque'
 import type { StockMovement, InventoryCount } from '@/data/stockData'
 import type { Produto, Unidade } from '@/data/productTypes'
 import { initialMovements, initialInventories } from '@/data/stockData'
@@ -18,10 +20,12 @@ import { supabase } from '@/lib/supabase'
 import * as db from '@/lib/database'
 import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'transferencia' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos'
+type EstoqueTab = 'indicadores' | 'vitrine' | 'alertas' | 'saida' | 'producao' | 'montagem' | 'transferencia' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
+  { id: 'vitrine', label: 'Vitrine', icon: <IceCream size={16} /> },
+  { id: 'alertas', label: 'Alertas', icon: <Bell size={16} /> },
   { id: 'saida', label: 'Saida p/ Balcao', icon: <Send size={16} /> },
   { id: 'producao', label: 'Producao', icon: <Factory size={16} /> },
   { id: 'montagem', label: 'Montagem', icon: <Layers size={16} /> },
@@ -386,6 +390,12 @@ export function EstoqueSection() {
       {/* Content */}
       {activeTab === 'indicadores' && (
         <StockDashboard produtos={produtos} movements={movements} />
+      )}
+      {activeTab === 'vitrine' && (
+        <VitrineDigital produtos={produtos} movements={movements} />
+      )}
+      {activeTab === 'alertas' && (
+        <AlertasEstoque produtos={produtos} movements={movements} />
       )}
       {activeTab === 'saida' && (
         <StockExitForm
