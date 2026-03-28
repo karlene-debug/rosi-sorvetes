@@ -33,10 +33,10 @@ interface EntradaNFManagerProps {
   }) => Promise<void>
 }
 
-// Categorias de insumos/materias-primas que entram via NF
+// Categorias de insumos/materias-primas que entram via NF de compra
 const categoriasEntrada: CategoriaProduto[] = [
   'insumo', 'embalagem', 'limpeza', 'bebida', 'complemento', 'descartavel',
-  'sorvete', 'bolo', 'acai', 'calda', 'cobertura', 'outros',
+  'calda', 'cobertura', 'outros',
 ]
 
 export function EntradaNFManager({ produtos, fornecedores, planoContas, unidades, onSubmit }: EntradaNFManagerProps) {
