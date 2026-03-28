@@ -21,6 +21,13 @@ export function ContasManager({ contas, planoContas, fornecedores, unidades = []
   const { mes, ano } = getMesAnoAtual()
   const [mesFiltro, setMesFiltro] = useState(mes)
   const [anoFiltro, setAnoFiltro] = useState(ano)
+  const [sortCol, setSortCol] = useState<'descricao' | 'valor' | 'vencimento' | 'situacao'>('vencimento')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const toggleSort = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   // Form state
   const [descricao, setDescricao] = useState('')
@@ -49,7 +56,13 @@ export function ContasManager({ contas, planoContas, fornecedores, unidades = []
     if (c.mesReferencia && c.mesReferencia !== mesFiltro) return false
     if (c.anoReferencia && c.anoReferencia !== anoFiltro) return false
     return true
-  }).sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
+  }).sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    if (sortCol === 'descricao') return a.descricao.localeCompare(b.descricao) * dir
+    if (sortCol === 'valor') return (a.valor - b.valor) * dir
+    if (sortCol === 'situacao') return a.situacao.localeCompare(b.situacao) * dir
+    return a.dataVencimento.localeCompare(b.dataVencimento) * dir
+  })
 
   // KPIs
   const contasMes = contasProcessadas.filter(c => c.mesReferencia === mesFiltro && c.anoReferencia === anoFiltro)
@@ -272,12 +285,20 @@ export function ContasManager({ contas, planoContas, fornecedores, unidades = []
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3">Descricao</th>
-                <th className="text-right text-xs font-semibold text-gray-500 uppercase px-4 py-3">Valor</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3">Vencimento</th>
+                <th onClick={() => toggleSort('descricao')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
+                  Descricao {sortCol === 'descricao' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th onClick={() => toggleSort('valor')} className="text-right text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
+                  Valor {sortCol === 'valor' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th onClick={() => toggleSort('vencimento')} className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
+                  Vencimento {sortCol === 'vencimento' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Plano</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 hidden lg:table-cell">Unidade</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3">Situacao</th>
+                <th onClick={() => toggleSort('situacao')} className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
+                  Situacao {sortCol === 'situacao' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

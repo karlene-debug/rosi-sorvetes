@@ -45,7 +45,8 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
       const { data: pcData, error: pcErr } = await supabase.from('plano_contas').select('*').order('grupo').order('nome')
       if (pcErr) throw pcErr
       setPlanoContas((pcData || []).map((p: Record<string, unknown>) => ({
-        id: p.id as string, nome: p.nome as string, tipoCusto: p.tipo_custo as PlanoContas['tipoCusto'],
+        id: p.id as string, nome: p.nome as string, descricao: (p.descricao as string) || undefined,
+        tipoCusto: p.tipo_custo as PlanoContas['tipoCusto'],
         grupo: p.grupo as PlanoContas['grupo'], condicao: p.condicao as PlanoContas['condicao'], status: p.status as 'ativo' | 'inativo',
       })))
 
@@ -133,7 +134,7 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
   const handleAddPlanoContas = async (p: Omit<PlanoContas, 'id' | 'status'>) => {
     if (useDb) {
       const { data, error } = await supabase.from('plano_contas').insert({
-        nome: p.nome, tipo_custo: p.tipoCusto, grupo: p.grupo, condicao: p.condicao,
+        nome: p.nome, descricao: p.descricao || null, tipo_custo: p.tipoCusto, grupo: p.grupo, condicao: p.condicao,
       }).select().single()
       if (!error && data) {
         setPlanoContas(prev => [...prev, { ...p, id: data.id, status: 'ativo' }])

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { DollarSign, Package, Users, AlertTriangle, ArrowUpRight, ArrowDownRight, Loader2, IceCream, Factory, Wallet } from 'lucide-react'
+import { DollarSign, Package, Users, AlertTriangle, ArrowUpRight, ArrowDownRight, Loader2, IceCream, Factory, Wallet, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
@@ -31,30 +31,50 @@ interface DashboardData {
 
 const COLORS = ['#E91E63', '#F06292', '#9C27B0', '#2196F3', '#FF9800', '#4CAF50', '#795548']
 
+const MESES_NOMES = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
+  const now = new Date()
+  const mesAtual = now.getMonth() + 1
+  const anoAtual = now.getFullYear()
+
+  const [mesFiltro, setMesFiltro] = useState(mesAtual)
+  const [anoFiltro, setAnoFiltro] = useState(anoAtual)
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [despesasMensais, setDespesasMensais] = useState<{ mes: string; valor: number }[]>([])
 
+  const navegarMes = (direcao: -1 | 1) => {
+    setMesFiltro(prev => {
+      let novoMes = prev + direcao
+      if (novoMes < 1) {
+        novoMes = 12
+        setAnoFiltro(a => a - 1)
+      } else if (novoMes > 12) {
+        novoMes = 1
+        setAnoFiltro(a => a + 1)
+      }
+      return novoMes
+    })
+  }
+
   const loadData = useCallback(async () => {
     try {
-      const now = new Date()
-      const mesAtual = now.getMonth() + 1
-      const anoAtual = now.getFullYear()
-      const mesAnterior = mesAtual === 1 ? 12 : mesAtual - 1
-      const anoAnterior = mesAtual === 1 ? anoAtual - 1 : anoAtual
-      const hoje = now.toISOString().split('T')[0]
+      setLoading(true)
+      const mesAnterior = mesFiltro === 1 ? 12 : mesFiltro - 1
+      const anoAnterior = mesFiltro === 1 ? anoFiltro - 1 : anoFiltro
+      const hoje = new Date().toISOString().split('T')[0]
 
-      // Contas do mes atual
+      // Contas do mes selecionado
       const { data: contasMes } = await supabase
         .from('contas')
         .select('valor, situacao, plano_contas(nome, grupo)')
-        .eq('mes_referencia', mesAtual)
-        .eq('ano_referencia', anoAtual)
+        .eq('mes_referencia', mesFiltro)
+        .eq('ano_referencia', anoFiltro)
         .neq('situacao', 'cancelado')
 
       // Contas do mes anterior
@@ -93,9 +113,9 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
 
       // Despesas dos ultimos 6 meses pra grafico
       const mesesChart: { mes: string; valor: number }[] = []
-      const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
       for (let i = 5; i >= 0; i--) {
-        const d = new Date(anoAtual, mesAtual - 1 - i, 1)
+        const d = new Date(anoFiltro, mesFiltro - 1 - i, 1)
         const m = d.getMonth() + 1
         const a = d.getFullYear()
         const { data: cMes } = await supabase
@@ -105,7 +125,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
           .eq('ano_referencia', a)
           .neq('situacao', 'cancelado')
         const total = (cMes || []).reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
-        mesesChart.push({ mes: `${mesesNomes[m - 1]}/${String(a).slice(2)}`, valor: total })
+        mesesChart.push({ mes: `${mesesAbrev[m - 1]}/${String(a).slice(2)}`, valor: total })
       }
       setDespesasMensais(mesesChart)
 
@@ -162,7 +182,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mesFiltro, anoFiltro])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -187,13 +207,43 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
     ? ((data.totalDespesasMes - data.totalDespesasMesAnterior) / data.totalDespesasMesAnterior) * 100
     : 0
 
-  const mesesNomes = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-  const mesAtualNome = mesesNomes[new Date().getMonth()]
+  const mesFiltroNome = MESES_NOMES[mesFiltro - 1]
 
   return (
     <div className="space-y-6">
+      {/* Month/Year Filter */}
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={() => navegarMes(-1)}
+          className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div className="text-center min-w-[180px]">
+          <h2 className="text-lg font-bold text-gray-800">{mesFiltroNome} {anoFiltro}</h2>
+        </div>
+        <button
+          onClick={() => navegarMes(1)}
+          className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Faturamento placeholder */}
+        <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 border-dashed opacity-70">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-11 h-11 bg-gray-100 rounded-xl flex items-center justify-center">
+              <DollarSign size={22} className="text-gray-400" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-400">--</p>
+          <p className="text-sm text-gray-400">Faturamento</p>
+          <p className="text-xs text-gray-400 mt-1">A integrar (DataCaixa/iFood)</p>
+        </div>
+
         <div className="bg-white rounded-2xl p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between mb-3">
             <div className="w-11 h-11 bg-red-50 rounded-xl flex items-center justify-center">
@@ -210,7 +260,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
             )}
           </div>
           <p className="text-2xl font-bold text-gray-800">{formatCurrency(data.totalDespesasMes)}</p>
-          <p className="text-sm text-gray-500">Despesas {mesAtualNome}</p>
+          <p className="text-sm text-gray-500">Despesas {mesFiltroNome}</p>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 hover:shadow-md transition-shadow">
@@ -286,7 +336,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
           <div className="mb-4">
             <h2 className="text-base font-bold text-gray-800">Despesas por Categoria</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{mesAtualNome}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{mesFiltroNome}</p>
           </div>
           {data.despesasPorGrupo.length > 0 ? (
             <div className="flex items-center gap-6">
@@ -402,6 +452,29 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
               </span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Resultado Section */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-base font-bold text-gray-800 mb-4">Resultado - {mesFiltroNome} {anoFiltro}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
+            <p className="text-sm text-gray-400 mb-1">Lucro / Prejuizo</p>
+            <p className="text-2xl font-bold text-gray-400">--</p>
+            <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
+            <p className="text-sm text-gray-400 mb-1">Margem</p>
+            <p className="text-2xl font-bold text-gray-400">-- %</p>
+            <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-4">
+          <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-blue-700">
+            Integre o DataCaixa ou iFood para ver faturamento, lucro e margem.
+          </p>
         </div>
       </div>
     </div>

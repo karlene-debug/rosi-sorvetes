@@ -10,6 +10,7 @@ export type SituacaoConta = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
 export interface PlanoContas {
   id: string
   nome: string
+  descricao?: string
   tipoCusto: TipoCusto
   grupo: GrupoContas
   condicao: Condicao
