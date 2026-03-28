@@ -43,6 +43,8 @@ export interface Produto {
   custoMedio?: number
   precoVenda?: number
   pesoKg?: number
+  rendimento?: number
+  rendimentoUnidade?: string
   status: 'ativo' | 'inativo'
   criadoEm: string
 }

@@ -393,7 +393,13 @@ export function EstoqueSection() {
         />
       )}
       {activeTab === 'receitas' && (
-        <ReceitasManager produtos={produtos} />
+        <ReceitasManager
+          produtos={produtos}
+          onUpdateRendimento={async (id, rend, rendUn) => {
+            await dbV2.updateProduto(id, { rendimento: rend, rendimentoUnidade: rendUn })
+            setProdutos(prev => prev.map(p => p.id === id ? { ...p, rendimento: rend, rendimentoUnidade: rendUn } : p))
+          }}
+        />
       )}
       {activeTab === 'inventario' && (
         <InventoryModule

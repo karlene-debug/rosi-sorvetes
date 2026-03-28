@@ -46,6 +46,8 @@ export async function fetchProdutos(): Promise<Produto[]> {
     custoMedio: p.custo_medio ? Number(p.custo_medio) : undefined,
     precoVenda: p.preco_venda ? Number(p.preco_venda) : undefined,
     pesoKg: p.peso_kg ? Number(p.peso_kg) : undefined,
+    rendimento: p.rendimento ? Number(p.rendimento) : undefined,
+    rendimentoUnidade: p.rendimento_unidade || undefined,
     status: p.status,
     criadoEm: p.criado_em,
   }))
@@ -96,6 +98,8 @@ export async function updateProduto(id: string, updates: Partial<Produto>): Prom
   if (updates.custoMedio !== undefined) dbUpdates.custo_medio = updates.custoMedio
   if (updates.precoVenda !== undefined) dbUpdates.preco_venda = updates.precoVenda
   if (updates.pesoKg !== undefined) dbUpdates.peso_kg = updates.pesoKg
+  if (updates.rendimento !== undefined) dbUpdates.rendimento = updates.rendimento
+  if (updates.rendimentoUnidade !== undefined) dbUpdates.rendimento_unidade = updates.rendimentoUnidade
   if (updates.status !== undefined) dbUpdates.status = updates.status
 
   const { error } = await supabase
