@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
-import { AlertTriangle, TrendingUp, Package, ArrowDown, ArrowUp, Filter } from 'lucide-react'
+import { AlertTriangle, TrendingUp, Package, ArrowDown, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Produto, CategoriaProduto } from '@/data/productTypes'
 import { categoriaLabels } from '@/data/productTypes'
@@ -113,7 +113,15 @@ function getMonthlyStats(movements: StockMovement[]): MonthStat[] {
 }
 
 export function StockDashboard({ produtos, movements }: StockDashboardProps) {
-  const [viewMode, setViewMode] = useState<'todos' | 'comEstoque'>('todos')
+  const [viewMode, setViewMode] = useState<'todos' | 'comEstoque'>('comEstoque')
+  const [catFiltro, setCatFiltro] = useState<'sorvete' | 'outros' | 'todos'>('sorvete')
+  const [sortCol, setSortCol] = useState<'produto' | 'categoria' | 'saldo'>('saldo')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const toggleSort = (col: 'produto' | 'categoria' | 'saldo') => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir(col === 'saldo' ? 'desc' : 'asc') }
+  }
 
   const saldos = useMemo(() => calcularSaldos(movements, produtos), [movements, produtos])
   const topProdutos = useMemo(() => getTopProdutos(movements, 10), [movements])
@@ -130,9 +138,17 @@ export function StockDashboard({ produtos, movements }: StockDashboardProps) {
   const producaoHoje = movHoje.filter(m => m.tipo === 'producao').reduce((s, m) => s + m.quantidade, 0)
   const saidaHoje = movHoje.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.quantidade, 0)
 
-  // Produtos criticos (saldo <= 2)
-  const produtosCriticos = saldos
-    .filter(s => s.saldo <= 2)
+  // Categorias sob demanda (nao alertar estoque zero)
+  const categoriasSobDemanda: CategoriaProduto[] = ['milkshake', 'taca']
+
+  // Sorvetes criticos (separado, mais visivel)
+  const sorvetesCriticos = saldos
+    .filter(s => s.categoria === 'sorvete' && s.saldo <= 2)
+    .sort((a, b) => a.saldo - b.saldo)
+
+  // Outros produtos criticos (sem milkshake/taca)
+  const outrosCriticos = saldos
+    .filter(s => s.categoria !== 'sorvete' && !categoriasSobDemanda.includes(s.categoria) && s.saldo <= 2)
     .sort((a, b) => a.saldo - b.saldo)
 
   // Pie chart data
@@ -173,15 +189,38 @@ export function StockDashboard({ produtos, movements }: StockDashboardProps) {
         />
       </div>
 
-      {/* Produtos Criticos */}
-      {produtosCriticos.length > 0 && (
+      {/* Sorvetes Criticos */}
+      {sorvetesCriticos.length > 0 && (
+        <div className="bg-[#FCE4EC] border border-[#F8BBD0] rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={18} className="text-[#E91E63]" />
+            <h3 className="text-sm font-semibold text-[#C2185B]">Sorvetes com estoque critico</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sorvetesCriticos.map(s => (
+              <span
+                key={s.produtoId}
+                className={cn(
+                  'text-xs px-3 py-1.5 rounded-full font-medium',
+                  s.saldo < 0 ? 'bg-red-100 text-red-700' : s.saldo === 0 ? 'bg-white text-gray-600' : 'bg-amber-100 text-amber-700'
+                )}
+              >
+                {s.produto}: {s.saldo}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Outros produtos criticos */}
+      {outrosCriticos.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={18} className="text-amber-600" />
-            <h3 className="text-sm font-semibold text-amber-800">Produtos com estoque critico (2 ou menos)</h3>
+            <h3 className="text-sm font-semibold text-amber-800">Outros produtos com estoque critico</h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            {produtosCriticos.map(s => (
+            {outrosCriticos.map(s => (
               <span
                 key={s.produtoId}
                 className={cn(
@@ -277,18 +316,26 @@ export function StockDashboard({ produtos, movements }: StockDashboardProps) {
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-gray-800 text-sm">Saldo em Estoque por Produto</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">Saldo em Estoque</h3>
             <p className="text-xs text-gray-500">Quantidade atual disponivel</p>
           </div>
           <div className="flex items-center gap-2">
-            <Filter size={14} className="text-gray-400" />
+            <select
+              value={catFiltro}
+              onChange={e => setCatFiltro(e.target.value as 'sorvete' | 'outros' | 'todos')}
+              className="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none"
+            >
+              <option value="sorvete">Sorvetes</option>
+              <option value="outros">Outros produtos</option>
+              <option value="todos">Todos</option>
+            </select>
             <select
               value={viewMode}
               onChange={e => setViewMode(e.target.value as 'todos' | 'comEstoque')}
               className="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none"
             >
+              <option value="comEstoque">Com estoque</option>
               <option value="todos">Todos</option>
-              <option value="comEstoque">Somente com estoque</option>
             </select>
           </div>
         </div>
@@ -296,15 +343,32 @@ export function StockDashboard({ produtos, movements }: StockDashboardProps) {
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2">Produto</th>
+                <th onClick={() => toggleSort('produto')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
+                  Produto {sortCol === 'produto' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2">Codigo</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2">Categoria</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-2">Saldo</th>
+                <th onClick={() => toggleSort('categoria')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
+                  Categoria {sortCol === 'categoria' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th onClick={() => toggleSort('saldo')} className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
+                  Saldo {sortCol === 'saldo' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {saldos
-                .filter(s => viewMode === 'todos' || s.saldo > 0)
+                .filter(s => {
+                  if (viewMode === 'comEstoque' && s.saldo <= 0) return false
+                  if (catFiltro === 'sorvete') return s.categoria === 'sorvete'
+                  if (catFiltro === 'outros') return s.categoria !== 'sorvete'
+                  return true
+                })
+                .sort((a, b) => {
+                  const dir = sortDir === 'asc' ? 1 : -1
+                  if (sortCol === 'produto') return a.produto.localeCompare(b.produto) * dir
+                  if (sortCol === 'categoria') return (categoriaLabels[a.categoria] || '').localeCompare(categoriaLabels[b.categoria] || '') * dir
+                  return (a.saldo - b.saldo) * dir
+                })
                 .map(s => (
                   <tr key={s.produtoId} className="hover:bg-gray-50/50">
                     <td className="px-4 py-2 text-sm text-gray-800">{s.produto}</td>

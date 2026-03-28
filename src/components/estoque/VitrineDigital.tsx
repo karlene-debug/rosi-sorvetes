@@ -10,9 +10,10 @@ interface VitrineDigitalProps {
   movements: StockMovement[]
 }
 
-// Categorias que aparecem na vitrine (o que o balconista vende)
+// Categorias que aparecem na vitrine (o que o balconista vende pronto)
+// Milkshake e taca sao feitos sob demanda, nao ficam na vitrine
 const categoriasVitrine: CategoriaProduto[] = [
-  'sorvete', 'acai', 'milkshake', 'taca', 'bolo',
+  'sorvete', 'acai', 'bolo',
 ]
 
 interface SaborVitrine {
