@@ -198,20 +198,21 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
     }
   }
 
-  // Handler para entrada de NF: cria movimentacoes de estoque + contas a pagar
+  // Handler para entrada de NF: cria movimentacoes de estoque + contas a pagar (agrupadas por plano de contas)
   const handleEntradaNF = async (data: {
     numeroNF: string
     dataDocumento: string
     fornecedorId: string
     fornecedorNome: string
     unidadeId?: string
-    planoContasId?: string
-    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; valorUnitario: number }[]
+    itens: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; valorUnitario: number; planoContasId?: string; planoContasNome?: string }[]
     totalNF: number
     numParcelas: number
     dataVencimento: string
   }) => {
     if (!useDb) return
+
+    const unid = activeUnidades.find(u => u.id === data.unidadeId)
 
     // 1. Dar entrada no estoque de cada item
     for (const item of data.itens) {
@@ -227,33 +228,65 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
       })
     }
 
-    // 2. Criar conta(s) a pagar
-    const descNF = `NF ${data.numeroNF} - ${data.fornecedorNome}`
-    const plano = activePlanoContas.find(p => p.id === data.planoContasId)
-    const unid = activeUnidades.find(u => u.id === data.unidadeId)
+    // 2. Agrupar itens por plano de contas para criar contas separadas
+    const grupos = new Map<string, { planoContasId?: string; planoContasNome?: string; total: number; itensNomes: string[] }>()
+    for (const item of data.itens) {
+      const key = item.planoContasId || '__sem_plano__'
+      const grupo = grupos.get(key) || { planoContasId: item.planoContasId, planoContasNome: item.planoContasNome, total: 0, itensNomes: [] }
+      grupo.total += item.quantidade * item.valorUnitario
+      grupo.itensNomes.push(item.produtoNome)
+      grupos.set(key, grupo)
+    }
 
-    if (data.numParcelas > 1) {
-      const valorParcela = Math.round((data.totalNF / data.numParcelas) * 100) / 100
-      for (let i = 0; i < data.numParcelas; i++) {
+    // 3. Criar conta(s) a pagar por grupo
+    for (const [, grupo] of grupos) {
+      const descNF = grupos.size > 1
+        ? `NF ${data.numeroNF} - ${data.fornecedorNome} (${grupo.itensNomes.slice(0, 3).join(', ')}${grupo.itensNomes.length > 3 ? '...' : ''})`
+        : `NF ${data.numeroNF} - ${data.fornecedorNome}`
+
+      if (data.numParcelas > 1) {
+        const valorParcela = Math.round((grupo.total / data.numParcelas) * 100) / 100
+        for (let i = 0; i < data.numParcelas; i++) {
+          const vencDate = new Date(data.dataVencimento + 'T12:00:00')
+          vencDate.setMonth(vencDate.getMonth() + i)
+          const vlr = i === data.numParcelas - 1
+            ? grupo.total - valorParcela * (data.numParcelas - 1)
+            : valorParcela
+          await handleAddConta({
+            descricao: descNF,
+            valor: vlr,
+            dataDocumento: data.dataDocumento,
+            dataVencimento: vencDate.toISOString().split('T')[0],
+            planoContasId: grupo.planoContasId,
+            planoContasNome: grupo.planoContasNome,
+            fornecedorId: data.fornecedorId,
+            fornecedorNome: data.fornecedorNome,
+            unidadeId: data.unidadeId,
+            unidadeNome: unid?.nome,
+            numeroNF: data.numeroNF,
+            parcela: `${i + 1}/${data.numParcelas}`,
+            totalParcelas: data.numParcelas,
+            situacao: 'pendente',
+            recorrente: false,
+            mesReferencia: vencDate.getMonth() + 1,
+            anoReferencia: vencDate.getFullYear(),
+            origem: 'plataforma',
+          })
+        }
+      } else {
         const vencDate = new Date(data.dataVencimento + 'T12:00:00')
-        vencDate.setMonth(vencDate.getMonth() + i)
-        const vlr = i === data.numParcelas - 1
-          ? data.totalNF - valorParcela * (data.numParcelas - 1)
-          : valorParcela
         await handleAddConta({
           descricao: descNF,
-          valor: vlr,
+          valor: grupo.total,
           dataDocumento: data.dataDocumento,
-          dataVencimento: vencDate.toISOString().split('T')[0],
-          planoContasId: data.planoContasId,
-          planoContasNome: plano?.nome,
+          dataVencimento: data.dataVencimento,
+          planoContasId: grupo.planoContasId,
+          planoContasNome: grupo.planoContasNome,
           fornecedorId: data.fornecedorId,
           fornecedorNome: data.fornecedorNome,
           unidadeId: data.unidadeId,
           unidadeNome: unid?.nome,
           numeroNF: data.numeroNF,
-          parcela: `${i + 1}/${data.numParcelas}`,
-          totalParcelas: data.numParcelas,
           situacao: 'pendente',
           recorrente: false,
           mesReferencia: vencDate.getMonth() + 1,
@@ -261,31 +294,9 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
           origem: 'plataforma',
         })
       }
-    } else {
-      const vencDate = new Date(data.dataVencimento + 'T12:00:00')
-      await handleAddConta({
-        descricao: descNF,
-        valor: data.totalNF,
-        dataDocumento: data.dataDocumento,
-        dataVencimento: data.dataVencimento,
-        planoContasId: data.planoContasId,
-        planoContasNome: plano?.nome,
-        fornecedorId: data.fornecedorId,
-        fornecedorNome: data.fornecedorNome,
-        unidadeId: data.unidadeId,
-        unidadeNome: unid?.nome,
-        numeroNF: data.numeroNF,
-        situacao: 'pendente',
-        recorrente: false,
-        mesReferencia: vencDate.getMonth() + 1,
-        anoReferencia: vencDate.getFullYear(),
-        origem: 'plataforma',
-      })
     }
   }
 
-  // Helpers para o handler de NF
-  const activePlanoContas = planoContas.filter(p => p.status === 'ativo')
   const activeUnidades = unidades.filter(u => u.status === 'ativo')
 
   const handleUpdateSituacao = async (id: string, situacao: SituacaoConta) => {
