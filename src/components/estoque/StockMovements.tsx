@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Settings, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, Settings, Search, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { StockMovement, MovementType } from '@/data/stockData'
+import type { StockMovement } from '@/data/stockData'
 
 interface StockMovementsProps {
   movements: StockMovement[]
@@ -9,7 +9,7 @@ interface StockMovementsProps {
 
 export function StockMovements({ movements }: StockMovementsProps) {
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState<MovementType | 'todos'>('todos')
+  const [filterType, setFilterType] = useState<string>('todos')
   const [filterOrigin, setFilterOrigin] = useState<'todos' | 'plataforma' | 'importado'>('todos')
   const [page, setPage] = useState(0)
   const perPage = 50
@@ -55,7 +55,7 @@ export function StockMovements({ movements }: StockMovementsProps) {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por sabor ou responsavel..."
+              placeholder="Buscar por produto ou responsavel..."
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(0) }}
               className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
@@ -64,13 +64,16 @@ export function StockMovements({ movements }: StockMovementsProps) {
           <div className="flex gap-2">
             <select
               value={filterType}
-              onChange={e => { setFilterType(e.target.value as MovementType | 'todos'); setPage(0) }}
+              onChange={e => { setFilterType(e.target.value); setPage(0) }}
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
             >
               <option value="todos">Todos tipos</option>
               <option value="producao">Producao</option>
               <option value="saida">Saida</option>
               <option value="ajuste">Ajuste</option>
+              <option value="montagem_saida">Montagem (saida)</option>
+              <option value="montagem_entrada">Montagem (entrada)</option>
+              <option value="transferencia">Transferencia</option>
             </select>
             <select
               value={filterOrigin}
@@ -101,27 +104,31 @@ export function StockMovements({ movements }: StockMovementsProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginated.map(m => (
+              {paginated.map(m => {
+                const t = m.tipo as string
+                return (
                 <tr key={m.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatDate(m.data)}</td>
                   <td className="px-4 py-2.5">
                     <span className={cn(
                       'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-                      m.tipo === 'producao' ? 'bg-blue-50 text-blue-700' :
-                      m.tipo === 'saida' ? 'bg-pink-50 text-pink-700' :
+                      t === 'producao' || t === 'montagem_entrada' ? 'bg-blue-50 text-blue-700' :
+                      t === 'saida' || t === 'montagem_saida' ? 'bg-pink-50 text-pink-700' :
+                      t === 'transferencia' ? 'bg-cyan-50 text-cyan-700' :
                       'bg-gray-100 text-gray-600'
                     )}>
-                      {m.tipo === 'producao' ? <ArrowUp size={10} /> : m.tipo === 'saida' ? <ArrowDown size={10} /> : <Settings size={10} />}
-                      {m.tipo === 'producao' ? 'Producao' : m.tipo === 'saida' ? 'Saida' : 'Ajuste'}
+                      {t === 'producao' || t === 'montagem_entrada' ? <ArrowUp size={10} /> : t === 'saida' || t === 'montagem_saida' ? <ArrowDown size={10} /> : t === 'transferencia' ? <ArrowRightLeft size={10} /> : <Settings size={10} />}
+                      {t === 'producao' ? 'Producao' : t === 'saida' ? 'Saida' : t === 'montagem_saida' ? 'Montagem (S)' : t === 'montagem_entrada' ? 'Montagem (E)' : t === 'transferencia' ? 'Transf.' : 'Ajuste'}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-sm text-gray-800">{m.sabor}</td>
                   <td className="px-4 py-2.5 text-center">
                     <span className={cn(
                       'text-sm font-semibold',
-                      m.tipo === 'producao' ? 'text-blue-600' : 'text-pink-600'
+                      t === 'producao' || t === 'montagem_entrada' ? 'text-blue-600' :
+                      t === 'transferencia' ? 'text-cyan-600' : 'text-pink-600'
                     )}>
-                      {m.tipo === 'producao' ? '+' : '-'}{m.quantidade}
+                      {t === 'producao' || t === 'montagem_entrada' ? '+' : t === 'transferencia' ? '' : '-'}{m.quantidade}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500 hidden sm:table-cell">{m.unidade}</td>
@@ -135,7 +142,8 @@ export function StockMovements({ movements }: StockMovementsProps) {
                     </span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

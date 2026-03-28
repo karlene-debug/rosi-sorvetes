@@ -103,11 +103,11 @@ export function EstoqueSection() {
   // === HANDLERS COM SUPABASE ===
 
   // Handler v2: producao e saida usando tabela produtos
+  // Na producao: se o produto tem receita, desconta ingredientes automaticamente
   const handleAddMovementsV2 = async (
     tipo: 'producao' | 'saida',
     items: { produtoId: string; produtoNome: string; quantidade: number; unidade: string; responsavel?: string }[],
   ) => {
-    // Adiciona ao estado local como StockMovement (compatibilidade com dashboard/historico)
     const now = new Date().toISOString()
     const localMovements: StockMovement[] = items.map((item, idx) => ({
       id: `local_${Date.now()}_${idx}`,
@@ -120,6 +120,49 @@ export function EstoqueSection() {
       responsavel: item.responsavel || '',
       origem: 'plataforma' as const,
     }))
+
+    // Se producao, verificar receitas e descontar ingredientes
+    if (tipo === 'producao' && useSupabase) {
+      for (const item of items) {
+        try {
+          const receita = await dbV2.fetchReceitas(item.produtoId)
+          if (receita.length > 0) {
+            const prod = produtos.find(p => p.id === item.produtoId)
+            const rendimento = prod?.rendimento || 1
+            const fator = item.quantidade / rendimento
+
+            for (const r of receita) {
+              const qtdDescontar = r.quantidade * fator
+              // Movimentacao local
+              localMovements.push({
+                id: `local_${Date.now()}_ing_${r.id}`,
+                data: now,
+                saborId: r.produtoIngredienteId,
+                sabor: r.produtoIngredienteNome || '',
+                quantidade: qtdDescontar,
+                unidade: r.unidade as StockMovement['unidade'],
+                tipo: 'saida',
+                responsavel: item.responsavel || '',
+                origem: 'plataforma' as const,
+              })
+              // Supabase
+              await dbV2.insertMovimentacaoV2({
+                produto_id: r.produtoIngredienteId,
+                quantidade: qtdDescontar,
+                unidade: r.unidade,
+                tipo: 'montagem_saida',
+                destino: 'montagem',
+                responsavel: item.responsavel || '',
+                observacao: `Auto: producao de ${item.quantidade}x ${item.produtoNome}`,
+              })
+            }
+          }
+        } catch {
+          // Se nao tem receita, segue sem descontar
+        }
+      }
+    }
+
     setMovements(prev => [...localMovements, ...prev])
 
     if (useSupabase) {
