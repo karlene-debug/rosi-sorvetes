@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Trash2, ClipboardCheck, CheckCircle, Calendar, AlertTriangle, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Flavor, StockMovement, InventoryCount, InventoryItem, UnitType } from '@/data/stockData'
-import { calcularSaldo, generateInventoryId } from '@/data/stockData'
+import type { Produto, CategoriaProduto } from '@/data/productTypes'
+import type { StockMovement, InventoryCount, InventoryItem } from '@/data/stockData'
+import { generateInventoryId } from '@/data/stockData'
+import { categoriaLabels } from '@/data/productTypes'
 
 interface InventoryModuleProps {
-  flavors: Flavor[]
+  produtos: Produto[]
   movements: StockMovement[]
   inventories: InventoryCount[]
   colaboradores: string[]
@@ -14,26 +16,58 @@ interface InventoryModuleProps {
 
 interface CountLine {
   id: number
-  saborId: string
-  unidade: UnitType
+  produtoId: string
+  unidade: string
   contagem: number
 }
 
-export function InventoryModule({ flavors, movements, inventories, colaboradores, onSaveInventory }: InventoryModuleProps) {
+// Categorias que fazem sentido pra inventario
+const categoriasInventario: CategoriaProduto[] = [
+  'sorvete', 'bolo', 'acai', 'milkshake', 'taca', 'calda', 'cobertura',
+  'complemento', 'descartavel', 'bebida', 'insumo', 'embalagem', 'limpeza',
+]
+
+export function InventoryModule({ produtos, movements, inventories, colaboradores, onSaveInventory }: InventoryModuleProps) {
   const [view, setView] = useState<'historico' | 'novo'>('historico')
   const [responsavel, setResponsavel] = useState('')
   const [observacao, setObservacao] = useState('')
   const [items, setItems] = useState<CountLine[]>([
-    { id: 1, saborId: '', unidade: 'Balde', contagem: 0 },
+    { id: 1, produtoId: '', unidade: 'Balde', contagem: 0 },
   ])
   const [nextId, setNextId] = useState(2)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const activeFlavors = flavors.filter(f => f.status === 'ativo').sort((a, b) => a.nome.localeCompare(b.nome))
-  const saldos = calcularSaldo(movements, flavors)
+  const produtosAtivos = useMemo(() =>
+    produtos
+      .filter(p => p.status === 'ativo' && categoriasInventario.includes(p.categoria))
+      .sort((a, b) => a.nome.localeCompare(b.nome)),
+    [produtos]
+  )
+
+  const produtosGrouped = useMemo(() =>
+    categoriasInventario
+      .map(cat => ({
+        cat,
+        label: categoriaLabels[cat],
+        prods: produtosAtivos.filter(p => p.categoria === cat),
+      }))
+      .filter(g => g.prods.length > 0),
+    [produtosAtivos]
+  )
+
+  // Calcular saldo esperado por produto a partir das movimentacoes
+  const saldoMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const m of movements) {
+      const current = map.get(m.saborId) || 0
+      const delta = m.tipo === 'producao' ? m.quantidade : m.tipo === 'saida' ? -m.quantidade : m.quantidade
+      map.set(m.saborId, current + delta)
+    }
+    return map
+  }, [movements])
 
   const addLine = () => {
-    setItems([...items, { id: nextId, saborId: '', unidade: 'Balde', contagem: 0 }])
+    setItems([...items, { id: nextId, produtoId: '', unidade: 'Balde', contagem: 0 }])
     setNextId(nextId + 1)
   }
 
@@ -45,29 +79,26 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
   const updateLine = (id: number, field: keyof CountLine, value: string | number) => {
     setItems(items.map(i => {
       if (i.id !== id) return i
-      if (field === 'saborId') {
-        const flavor = activeFlavors.find(f => f.id === value)
-        return { ...i, saborId: value as string, unidade: flavor?.unidades[0] || 'Balde' }
+      if (field === 'produtoId') {
+        const prod = produtosAtivos.find(p => p.id === value)
+        return { ...i, produtoId: value as string, unidade: prod?.unidadeMedida || 'Balde' }
       }
       return { ...i, [field]: value }
     }))
   }
 
-  const isValid = responsavel && items.every(i => i.saborId)
+  const isValid = responsavel && items.every(i => i.produtoId)
 
   const handleSubmit = () => {
     if (!isValid) return
 
     const inventoryItems: InventoryItem[] = items.map(item => {
-      const flavor = activeFlavors.find(f => f.id === item.saborId)!
-      const saldo = saldos.find(s => s.saborId === item.saborId)
-      const esperado = saldo
-        ? (item.unidade === 'Balde' ? saldo.balde : item.unidade === 'Caixa de 5 L' ? saldo.caixa5l : saldo.poteCreme)
-        : 0
+      const prod = produtosAtivos.find(p => p.id === item.produtoId)!
+      const esperado = saldoMap.get(item.produtoId) || 0
       return {
-        saborId: item.saborId,
-        sabor: flavor.nome,
-        unidade: item.unidade,
+        saborId: item.produtoId,
+        sabor: prod.nome,
+        unidade: item.unidade as InventoryItem['unidade'],
         contagem: item.contagem,
         esperado,
         divergencia: item.contagem - esperado,
@@ -85,7 +116,7 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
     onSaveInventory(inventory)
     setResponsavel('')
     setObservacao('')
-    setItems([{ id: nextId, saborId: '', unidade: 'Balde', contagem: 0 }])
+    setItems([{ id: nextId, produtoId: '', unidade: 'Balde', contagem: 0 }])
     setNextId(nextId + 1)
     setShowSuccess(true)
     setView('historico')
@@ -108,7 +139,7 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
-  const usedFlavors = new Set(items.map(i => i.saborId).filter(Boolean))
+  const usedProducts = new Set(items.map(i => i.produtoId).filter(Boolean))
 
   return (
     <div className="space-y-4">
@@ -206,7 +237,7 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase py-2 px-2">Sabor</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase py-2 px-2">Produto</th>
                       <th className="text-center text-xs font-semibold text-gray-500 uppercase py-2 px-2">Contagem</th>
                       <th className="text-center text-xs font-semibold text-gray-500 uppercase py-2 px-2">Esperado</th>
                       <th className="text-center text-xs font-semibold text-gray-500 uppercase py-2 px-2">Divergencia</th>
@@ -281,28 +312,33 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
 
           <div className="space-y-3">
             <div className="hidden sm:grid grid-cols-[1fr_100px_140px_40px] gap-3 px-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Sabor</span>
+              <span className="text-xs font-semibold text-gray-500 uppercase">Produto</span>
               <span className="text-xs font-semibold text-gray-500 uppercase">Contagem</span>
               <span className="text-xs font-semibold text-gray-500 uppercase">Unidade</span>
               <span></span>
             </div>
 
             {items.map((item, index) => {
-              const selectedFlavor = activeFlavors.find(f => f.id === item.saborId)
+              const selectedProd = produtosAtivos.find(p => p.id === item.produtoId)
               return (
                 <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px_40px] gap-2 sm:gap-3 p-3 sm:p-0 bg-gray-50 sm:bg-transparent rounded-lg sm:rounded-none">
                   <div>
-                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Sabor</span>}
+                    {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Produto</span>}
                     <select
-                      value={item.saborId}
-                      onChange={e => updateLine(item.id, 'saborId', e.target.value)}
+                      value={item.produtoId}
+                      onChange={e => updateLine(item.id, 'produtoId', e.target.value)}
                       className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-300"
                     >
-                      <option value="">Selecione o sabor...</option>
-                      {activeFlavors.map(f => (
-                        <option key={f.id} value={f.id} disabled={usedFlavors.has(f.id) && f.id !== item.saborId}>
-                          {f.nome}
-                        </option>
+                      <option value="">Selecione o produto...</option>
+                      {produtosGrouped.map(g => (
+                        <optgroup key={g.cat} label={g.label}>
+                          {g.prods.map(p => (
+                            <option key={p.id} value={p.id} disabled={usedProducts.has(p.id) && p.id !== item.produtoId}>
+                              {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
+                              {usedProducts.has(p.id) && p.id !== item.produtoId ? ' (ja adicionado)' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>
@@ -318,21 +354,12 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
                   </div>
                   <div>
                     {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Unidade</span>}
-                    <select
-                      value={item.unidade}
-                      onChange={e => updateLine(item.id, 'unidade', e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-300"
-                    >
-                      {selectedFlavor ? (
-                        selectedFlavor.unidades.map(u => <option key={u} value={u}>{u}</option>)
-                      ) : (
-                        <>
-                          <option value="Balde">Balde</option>
-                          <option value="Caixa de 5 L">Caixa de 5 L</option>
-                          <option value="Pote de Creme">Pote de Creme</option>
-                        </>
-                      )}
-                    </select>
+                    <input
+                      type="text"
+                      value={selectedProd ? selectedProd.unidadeMedida : item.unidade}
+                      readOnly
+                      className="w-full px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-not-allowed"
+                    />
                   </div>
                   <div className="flex items-end justify-end sm:justify-center">
                     <button
@@ -353,7 +380,7 @@ export function InventoryModule({ flavors, movements, inventories, colaboradores
             className="mt-3 flex items-center gap-2 px-4 py-2 text-purple-600 border border-dashed border-purple-200 rounded-lg text-sm font-medium hover:bg-purple-50/30 transition-colors w-full justify-center"
           >
             <Plus size={16} />
-            Adicionar mais um sabor
+            Adicionar mais um produto
           </button>
 
           <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end">

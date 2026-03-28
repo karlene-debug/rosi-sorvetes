@@ -1,24 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Factory, BarChart3, List, IceCream, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers } from 'lucide-react'
+import { Send, Factory, BarChart3, List, ClipboardCheck, Loader2, WifiOff, Upload, Package, BookOpen, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StockExitForm } from './StockExitForm'
 import { ProductionForm } from './ProductionForm'
 import { MontagemForm } from './MontagemForm'
 import { StockDashboard } from './StockDashboard'
 import { StockMovements } from './StockMovements'
-import { FlavorManager } from './FlavorManager'
 import { InventoryModule } from './InventoryModule'
 import { DataImportTool } from './DataImportTool'
 import { ProductManager } from './ProductManager'
 import { ReceitasManager } from './ReceitasManager'
-import type { Flavor, StockMovement, InventoryCount } from '@/data/stockData'
+import type { StockMovement, InventoryCount } from '@/data/stockData'
 import type { Produto } from '@/data/productTypes'
-import { initialFlavors, initialMovements, initialInventories } from '@/data/stockData'
+import { initialMovements, initialInventories } from '@/data/stockData'
 import { supabase } from '@/lib/supabase'
 import * as db from '@/lib/database'
 import * as dbV2 from '@/lib/database_v2'
 
-type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos' | 'sabores'
+type EstoqueTab = 'indicadores' | 'saida' | 'producao' | 'montagem' | 'receitas' | 'inventario' | 'historico' | 'importar' | 'produtos'
 
 const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
@@ -30,12 +29,10 @@ const tabs: { id: EstoqueTab; label: string; icon: React.ReactNode }[] = [
   { id: 'historico', label: 'Historico', icon: <List size={16} /> },
   { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} /> },
   { id: 'produtos', label: 'Produtos', icon: <Package size={16} /> },
-  { id: 'sabores', label: 'Sabores', icon: <IceCream size={16} /> },
 ]
 
 export function EstoqueSection() {
   const [activeTab, setActiveTab] = useState<EstoqueTab>('indicadores')
-  const [flavors, setFlavors] = useState<Flavor[]>(initialFlavors)
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements)
   const [inventories, setInventories] = useState<InventoryCount[]>(initialInventories)
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -54,13 +51,11 @@ export function EstoqueSection() {
       }
       setUseSupabase(true)
 
-      const [sabores, movs, invs] = await Promise.all([
-        db.fetchSabores(),
+      const [movs, invs] = await Promise.all([
         db.fetchMovimentacoes(),
         db.fetchInventarios(),
       ])
 
-      setFlavors(sabores.length > 0 ? sabores : initialFlavors)
       setMovements(movs.length > 0 ? movs : initialMovements)
       setInventories(invs.length > 0 ? invs : initialInventories)
 
@@ -206,40 +201,6 @@ export function EstoqueSection() {
     }
   }
 
-  const handleAddFlavor = async (flavor: Flavor) => {
-    if (useSupabase) {
-      try {
-        const saved = await db.insertSabor({
-          nome: flavor.nome,
-          categoria: flavor.categoria,
-          unidades: flavor.unidades,
-          status: flavor.status,
-        })
-        setFlavors(prev => [...prev, saved])
-        return
-      } catch (err) {
-        console.error('Erro ao salvar sabor:', err)
-      }
-    }
-    setFlavors(prev => [...prev, flavor])
-  }
-
-  const handleToggleFlavorStatus = async (id: string) => {
-    const flavor = flavors.find(f => f.id === id)
-    if (!flavor) return
-
-    setFlavors(prev => prev.map(f =>
-      f.id === id ? { ...f, status: f.status === 'ativo' ? 'inativo' : 'ativo' } : f
-    ))
-    if (useSupabase) {
-      try {
-        await db.toggleSaborStatus(id, flavor.status)
-      } catch (err) {
-        console.error('Erro ao atualizar sabor:', err)
-      }
-    }
-  }
-
   const handleAddProduto = async (p: Omit<Produto, 'id' | 'criadoEm'>) => {
     if (useSupabase) {
       try {
@@ -369,7 +330,7 @@ export function EstoqueSection() {
 
       {/* Content */}
       {activeTab === 'indicadores' && (
-        <StockDashboard flavors={flavors} movements={movements} />
+        <StockDashboard produtos={produtos} movements={movements} />
       )}
       {activeTab === 'saida' && (
         <StockExitForm
@@ -403,7 +364,7 @@ export function EstoqueSection() {
       )}
       {activeTab === 'inventario' && (
         <InventoryModule
-          flavors={flavors}
+          produtos={produtos}
           movements={movements}
           inventories={inventories}
           colaboradores={nomesFuncionarios}
@@ -415,7 +376,7 @@ export function EstoqueSection() {
       )}
       {activeTab === 'importar' && (
         <DataImportTool
-          flavors={flavors}
+          flavors={[]}
           useSupabase={useSupabase}
           onImportComplete={loadData}
         />
@@ -427,13 +388,6 @@ export function EstoqueSection() {
           onAdd={handleAddProduto}
           onUpdate={handleUpdateProduto}
           onDelete={handleDeleteProduto}
-        />
-      )}
-      {activeTab === 'sabores' && (
-        <FlavorManager
-          flavors={flavors}
-          onAddFlavor={handleAddFlavor}
-          onToggleStatus={handleToggleFlavorStatus}
         />
       )}
     </div>
