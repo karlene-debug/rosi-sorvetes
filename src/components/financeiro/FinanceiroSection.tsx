@@ -43,28 +43,38 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
 
   const loadData = useCallback(async () => {
     try {
-      // Plano de contas
-      const { data: pcData, error: pcErr } = await supabase.from('plano_contas').select('*').order('grupo').order('nome')
+      // Todas as queries em paralelo
+      const [
+        { data: pcData, error: pcErr },
+        { data: fData, error: fErr },
+        { data: cfData, error: cfErr },
+        { data: ctData, error: ctErr },
+        prods,
+      ] = await Promise.all([
+        supabase.from('plano_contas').select('*').order('grupo').order('nome'),
+        supabase.from('fornecedores').select('*').order('nome'),
+        supabase.from('custos_fixos').select('*, plano_contas(nome), fornecedores(nome)').order('descricao'),
+        supabase.from('contas').select('*, plano_contas(nome), fornecedores(nome), unidades(nome)').order('data_vencimento'),
+        dbV2.fetchProdutos().catch(() => [] as Produto[]),
+      ])
+
       if (pcErr) throw pcErr
+      if (fErr) throw fErr
+      if (cfErr) throw cfErr
+      if (ctErr) throw ctErr
+
       setPlanoContas((pcData || []).map((p: Record<string, unknown>) => ({
         id: p.id as string, nome: p.nome as string, descricao: (p.descricao as string) || undefined,
         tipoCusto: p.tipo_custo as PlanoContas['tipoCusto'],
         grupo: p.grupo as PlanoContas['grupo'], condicao: p.condicao as PlanoContas['condicao'], status: p.status as 'ativo' | 'inativo',
       })))
 
-      // Fornecedores
-      const { data: fData, error: fErr } = await supabase.from('fornecedores').select('*').order('nome')
-      if (fErr) throw fErr
       setFornecedores((fData || []).map((f: Record<string, unknown>) => ({
         id: f.id as string, nome: f.nome as string, contato: (f.contato as string) || undefined,
         telefone: (f.telefone as string) || undefined, email: (f.email as string) || undefined,
         observacao: (f.observacao as string) || undefined, status: f.status as 'ativo' | 'inativo', criadoEm: f.criado_em as string,
       })))
 
-      // Custos fixos
-      const { data: cfData, error: cfErr } = await supabase
-        .from('custos_fixos').select('*, plano_contas(nome), fornecedores(nome)').order('descricao')
-      if (cfErr) throw cfErr
       setCustosFixos((cfData || []).map((c: Record<string, unknown>) => ({
         id: c.id as string, descricao: c.descricao as string, valor: Number(c.valor),
         diaVencimento: c.dia_vencimento as number, planoContasId: (c.plano_contas_id as string) || undefined,
@@ -74,10 +84,6 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
         status: c.status as 'ativo' | 'inativo',
       })))
 
-      // Contas
-      const { data: ctData, error: ctErr } = await supabase
-        .from('contas').select('*, plano_contas(nome), fornecedores(nome), unidades(nome)').order('data_vencimento')
-      if (ctErr) throw ctErr
       setContas((ctData || []).map((c: Record<string, unknown>) => ({
         id: c.id as string, descricao: c.descricao as string, valor: Number(c.valor),
         dataDocumento: (c.data_documento as string) || undefined, dataVencimento: c.data_vencimento as string,
@@ -96,13 +102,7 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
         origem: c.origem as 'plataforma' | 'importado',
       })))
 
-      // Produtos (para entrada de NF)
-      try {
-        const prods = await dbV2.fetchProdutos()
-        setProdutos(prods)
-      } catch {
-        // Tabela pode nao existir
-      }
+      setProdutos(prods)
 
       setUseDb(true)
     } catch {

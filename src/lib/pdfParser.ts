@@ -1,11 +1,18 @@
-import * as pdfjsLib from 'pdfjs-dist'
 import type { FaturamentoDiario, VendaProduto } from './database_v2'
 
-// Configure worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString()
+// Lazy-load pdfjs-dist only when needed (2MB+ worker)
+let pdfjsLib: typeof import('pdfjs-dist') | null = null
+
+async function getPdfjs() {
+  if (!pdfjsLib) {
+    pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.mjs',
+      import.meta.url
+    ).toString()
+  }
+  return pdfjsLib
+}
 
 export interface ParsedReport {
   tipo: 'faturamento_diario' | 'produtos_vendidos'
@@ -59,8 +66,9 @@ interface TextItem {
 }
 
 async function extractTextItems(file: File): Promise<{ items: TextItem[][]; fullText: string }> {
+  const pdfjs = await getPdfjs()
   const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
 
   const allPageItems: TextItem[][] = []
   let fullText = ''

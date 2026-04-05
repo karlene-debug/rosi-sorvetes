@@ -105,89 +105,64 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
 
   const loadData = useCallback(async () => {
     try {
-      // Cargos
-      const { data: cargosData, error: cErr } = await supabase
-        .from('cargos')
-        .select('*')
-        .order('nome')
+      // Todas as queries em paralelo
+      const [
+        { data: cargosData, error: cErr },
+        { data: funcData, error: fErr },
+        { data: ocData, error: oErr },
+        feriasResult,
+      ] = await Promise.all([
+        supabase.from('cargos').select('*').order('nome'),
+        supabase.from('funcionarios').select('*, cargos(nome), unidades(nome)').order('nome'),
+        supabase.from('ocorrencias').select('*, funcionarios(nome)').order('data', { ascending: false }).limit(200),
+        supabase.from('vw_ferias_vencimentos').select('*').then(
+          (r: { data: Record<string, unknown>[] | null }) => r,
+          () => ({ data: null })
+        ),
+      ])
+
       if (cErr) throw cErr
-      setCargos((cargosData || []).map(c => ({
-        id: c.id,
-        nome: c.nome,
-        descricaoAtividades: c.descricao_atividades || undefined,
-        departamento: c.departamento || undefined,
+      if (fErr) throw fErr
+      if (oErr) throw oErr
+
+      setCargos((cargosData || []).map((c: Record<string, unknown>) => ({
+        id: c.id as string, nome: c.nome as string,
+        descricaoAtividades: (c.descricao_atividades as string) || undefined,
+        departamento: (c.departamento as string) || undefined,
         faixaSalarialMin: c.faixa_salarial_min ? Number(c.faixa_salarial_min) : undefined,
         faixaSalarialMax: c.faixa_salarial_max ? Number(c.faixa_salarial_max) : undefined,
-        status: c.status,
+        status: c.status as string,
       })))
 
-      // Funcionarios
-      const { data: funcData, error: fErr } = await supabase
-        .from('funcionarios')
-        .select('*, cargos(nome), unidades(nome)')
-        .order('nome')
-      if (fErr) throw fErr
-      setFuncionarios((funcData || []).map(f => ({
-        id: f.id,
-        nome: f.nome,
-        cpf: f.cpf || undefined,
-        telefone: f.telefone || undefined,
-        email: f.email || undefined,
-        cargoId: f.cargo_id || undefined,
-        cargoNome: f.cargos?.nome || undefined,
-        unidadeId: f.unidade_id || undefined,
-        unidadeNome: f.unidades?.nome || undefined,
-        dataAdmissao: f.data_admissao || undefined,
-        dataDemissao: f.data_demissao || undefined,
+      setFuncionarios((funcData || []).map((f: Record<string, unknown>) => ({
+        id: f.id as string, nome: f.nome as string,
+        cpf: (f.cpf as string) || undefined, telefone: (f.telefone as string) || undefined, email: (f.email as string) || undefined,
+        cargoId: (f.cargo_id as string) || undefined, cargoNome: (f.cargos as Record<string, string> | null)?.nome || undefined,
+        unidadeId: (f.unidade_id as string) || undefined, unidadeNome: (f.unidades as Record<string, string> | null)?.nome || undefined,
+        dataAdmissao: (f.data_admissao as string) || undefined, dataDemissao: (f.data_demissao as string) || undefined,
         salario: f.salario ? Number(f.salario) : undefined,
-        tipoContrato: f.tipo_contrato || undefined,
-        jornada: f.jornada || undefined,
-        status: f.status,
-        observacao: f.observacao || undefined,
+        tipoContrato: (f.tipo_contrato as string) || undefined, jornada: (f.jornada as string) || undefined,
+        status: f.status as string, observacao: (f.observacao as string) || undefined,
       })))
 
-      // Ocorrencias
-      const { data: ocData, error: oErr } = await supabase
-        .from('ocorrencias')
-        .select('*, funcionarios(nome)')
-        .order('data', { ascending: false })
-        .limit(200)
-      if (oErr) throw oErr
-      setOcorrencias((ocData || []).map(o => ({
-        id: o.id,
-        funcionarioId: o.funcionario_id,
-        funcionarioNome: o.funcionarios?.nome || undefined,
-        data: o.data,
-        tipo: o.tipo,
-        descricao: o.descricao || undefined,
-        dias: o.dias || 1,
-        documentoUrl: o.documento_url || undefined,
-        registradoPor: o.registrado_por || undefined,
+      setOcorrencias((ocData || []).map((o: Record<string, unknown>) => ({
+        id: o.id as string, funcionarioId: o.funcionario_id as string,
+        funcionarioNome: (o.funcionarios as Record<string, string> | null)?.nome || undefined,
+        data: o.data as string, tipo: o.tipo as string, descricao: (o.descricao as string) || undefined,
+        dias: (o.dias as number) || 1, documentoUrl: (o.documento_url as string) || undefined,
+        registradoPor: (o.registrado_por as string) || undefined,
       })))
 
-      // Ferias
-      try {
-        const { data: fData } = await supabase
-          .from('vw_ferias_vencimentos')
-          .select('*')
-        setFerias((fData || []).map(f => ({
-          id: f.id,
-          funcionarioId: f.funcionario_id,
-          funcionarioNome: f.funcionario_nome || undefined,
-          unidadeNome: f.unidade_nome || undefined,
-          periodoAquisitivoInicio: f.periodo_aquisitivo_inicio,
-          periodoAquisitivoFim: f.periodo_aquisitivo_fim,
-          dataLimite: f.data_limite,
-          dataInicio: f.data_inicio || undefined,
-          dataFim: f.data_fim || undefined,
-          dias: f.dias || 30,
-          status: f.status,
-          alerta: f.alerta || undefined,
-          observacao: f.observacao || undefined,
-        })))
-      } catch {
-        // View pode nao existir ainda
-      }
+      const fData = feriasResult?.data
+      setFerias((fData || []).map((f: Record<string, unknown>) => ({
+        id: f.id as string, funcionarioId: f.funcionario_id as string,
+        funcionarioNome: (f.funcionario_nome as string) || undefined, unidadeNome: (f.unidade_nome as string) || undefined,
+        periodoAquisitivoInicio: f.periodo_aquisitivo_inicio as string,
+        periodoAquisitivoFim: f.periodo_aquisitivo_fim as string, dataLimite: f.data_limite as string,
+        dataInicio: (f.data_inicio as string) || undefined, dataFim: (f.data_fim as string) || undefined,
+        dias: (f.dias as number) || 30, status: f.status as string,
+        alerta: (f.alerta as string) || undefined, observacao: (f.observacao as string) || undefined,
+      })))
 
       setConnected(true)
     } catch {
