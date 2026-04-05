@@ -76,6 +76,8 @@ export interface Ferias {
   dataInicio?: string
   dataFim?: string
   dias: number
+  venderDias?: number
+  dataConfirmacao?: string
   status: string
   alerta?: string
   observacao?: string
@@ -160,7 +162,10 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
         periodoAquisitivoInicio: f.periodo_aquisitivo_inicio as string,
         periodoAquisitivoFim: f.periodo_aquisitivo_fim as string, dataLimite: f.data_limite as string,
         dataInicio: (f.data_inicio as string) || undefined, dataFim: (f.data_fim as string) || undefined,
-        dias: (f.dias as number) || 30, status: f.status as string,
+        dias: (f.dias as number) || 30,
+        venderDias: (f.vender_dias as number) || 0,
+        dataConfirmacao: (f.data_confirmacao as string) || undefined,
+        status: f.status as string,
         alerta: (f.alerta as string) || undefined, observacao: (f.observacao as string) || undefined,
       })))
 
@@ -289,6 +294,88 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
     setOcorrencias(prev => [nova, ...prev])
   }
 
+  const handleUpdateOcorrencia = async (id: string, updates: Partial<Ocorrencia>) => {
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.funcionarioId !== undefined) dbUpdates.funcionario_id = updates.funcionarioId
+    if (updates.data !== undefined) dbUpdates.data = updates.data
+    if (updates.dataFim !== undefined) dbUpdates.data_fim = updates.dataFim || null
+    if (updates.tipo !== undefined) dbUpdates.tipo = updates.tipo
+    if (updates.descricao !== undefined) dbUpdates.descricao = updates.descricao || null
+    if (updates.dias !== undefined) dbUpdates.dias = updates.dias
+    if (updates.registradoPor !== undefined) dbUpdates.registrado_por = updates.registradoPor || null
+
+    const { data, error } = await supabase
+      .from('ocorrencias')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select('*, funcionarios(nome)')
+      .single()
+    if (error) throw error
+
+    setOcorrencias(prev => prev.map(o => o.id === id ? {
+      ...o,
+      ...updates,
+      funcionarioNome: data.funcionarios?.nome || o.funcionarioNome,
+    } : o))
+  }
+
+  const handleProgramarFerias = async (f: {
+    funcionarioId: string; periodoAquisitivoInicio: string; periodoAquisitivoFim: string
+    dataLimite: string; dataInicio: string; dataFim: string; dias: number
+    venderDias: number; observacao?: string
+  }) => {
+    const { error } = await supabase
+      .from('ferias')
+      .insert({
+        funcionario_id: f.funcionarioId,
+        periodo_aquisitivo_inicio: f.periodoAquisitivoInicio,
+        periodo_aquisitivo_fim: f.periodoAquisitivoFim,
+        data_limite: f.dataLimite,
+        data_inicio: f.dataInicio,
+        data_fim: f.dataFim,
+        dias: f.dias,
+        vender_dias: f.venderDias,
+        status: 'programada',
+        observacao: f.observacao || null,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    // Reload ferias from view
+    const { data: fData } = await supabase.from('vw_ferias_vencimentos').select('*')
+    if (fData) {
+      setFerias(fData.map((fr: Record<string, unknown>) => ({
+        id: fr.id as string, funcionarioId: fr.funcionario_id as string,
+        funcionarioNome: (fr.funcionario_nome as string) || undefined,
+        unidadeNome: (fr.unidade_nome as string) || undefined,
+        periodoAquisitivoInicio: fr.periodo_aquisitivo_inicio as string,
+        periodoAquisitivoFim: fr.periodo_aquisitivo_fim as string,
+        dataLimite: fr.data_limite as string,
+        dataInicio: (fr.data_inicio as string) || undefined,
+        dataFim: (fr.data_fim as string) || undefined,
+        dias: (fr.dias as number) || 30,
+        venderDias: (fr.vender_dias as number) || 0,
+        dataConfirmacao: (fr.data_confirmacao as string) || undefined,
+        status: fr.status as string,
+        alerta: (fr.alerta as string) || undefined,
+        observacao: (fr.observacao as string) || undefined,
+      })))
+    }
+  }
+
+  const handleConfirmarFerias = async (id: string) => {
+    await supabase.from('ferias').update({
+      status: 'em_andamento',
+      data_confirmacao: new Date().toISOString().split('T')[0],
+    }).eq('id', id)
+    setFerias(prev => prev.map(f => f.id === id ? { ...f, status: 'em_andamento' } : f))
+  }
+
+  const handleConcluirFerias = async (id: string) => {
+    await supabase.from('ferias').update({ status: 'concluida' }).eq('id', id)
+    setFerias(prev => prev.map(f => f.id === id ? { ...f, status: 'concluida' } : f))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -345,12 +432,16 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
           ocorrencias={ocorrencias}
           funcionarios={funcionarios}
           onAdd={handleAddOcorrencia}
+          onUpdate={handleUpdateOcorrencia}
         />
       )}
       {activeTab === 'ferias' && (
         <FeriasManager
           ferias={ferias}
           funcionarios={funcionarios}
+          onProgramar={handleProgramarFerias}
+          onConfirmar={handleConfirmarFerias}
+          onConcluir={handleConcluirFerias}
         />
       )}
     </div>
