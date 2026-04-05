@@ -1,8 +1,17 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, X } from 'lucide-react'
+import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, X, DollarSign, TrendingUp } from 'lucide-react'
 import type { Cargo, Funcionario, Beneficio } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
+
+interface HistoricoSalarial {
+  id: string
+  salarioAnterior: number
+  salarioNovo: number
+  dataReajuste: string
+  motivo?: string
+  registradoPor?: string
+}
 
 const tipoContratoLabels: Record<string, string> = {
   clt: 'CLT',
@@ -54,7 +63,10 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
   const [editingId, setEditingId] = useState<string | null>(null)
   const [demitindoId, setDemitindoId] = useState<string | null>(null)
   const [dataDemissao, setDataDemissao] = useState('')
+  const [reajusteId, setReajusteId] = useState<string | null>(null)
+  const [reajusteForm, setReajusteForm] = useState({ salarioNovo: '', motivo: '', registradoPor: '' })
   const [funcBeneficios, setFuncBeneficios] = useState<Record<string, Beneficio[]>>({})
+  const [funcHistorico, setFuncHistorico] = useState<Record<string, HistoricoSalarial[]>>({})
   const [form, setForm] = useState({
     nome: '',
     cpf: '',
@@ -177,6 +189,42 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
     }
   }
 
+  const handleReajuste = async (funcId: string) => {
+    if (!reajusteForm.salarioNovo) return
+    const func = funcionarios.find(f => f.id === funcId)
+    if (!func) return
+    setSaving(true)
+    try {
+      const salarioNovo = parseFloat(reajusteForm.salarioNovo)
+      // Salvar historico
+      await supabase.from('historico_salarial').insert({
+        funcionario_id: funcId,
+        salario_anterior: func.salario || 0,
+        salario_novo: salarioNovo,
+        data_reajuste: new Date().toISOString().split('T')[0],
+        motivo: reajusteForm.motivo || null,
+        registrado_por: reajusteForm.registradoPor || null,
+      })
+      // Atualizar salario do funcionario
+      await supabase.from('funcionarios').update({ salario: salarioNovo }).eq('id', funcId)
+      // Atualizar state local
+      if (onUpdate) {
+        await onUpdate(funcId, { salario: salarioNovo })
+      }
+      // Limpar historico cache para recarregar
+      setFuncHistorico(prev => { const n = { ...prev }; delete n[funcId]; return n })
+      setReajusteId(null)
+      setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' })
+      setSuccessMsg('Reajuste salarial registrado com sucesso!')
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
+    } catch (err) {
+      console.error('Erro ao registrar reajuste:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleCancelForm = () => {
     setShowForm(false)
     setEditingId(null)
@@ -202,12 +250,24 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
       return
     }
     setExpandedId(funcId)
+    // Carregar beneficios e historico em paralelo
     if (!funcBeneficios[funcId]) {
       try {
-        const { data } = await supabase
-          .from('beneficios')
-          .select('*')
-          .eq('funcionario_id', funcId)
+        const [{ data }, { data: histData }] = await Promise.all([
+          supabase.from('beneficios').select('*').eq('funcionario_id', funcId),
+          supabase.from('historico_salarial').select('*').eq('funcionario_id', funcId).order('data_reajuste', { ascending: false }),
+        ])
+        setFuncHistorico(prev => ({
+          ...prev,
+          [funcId]: (histData || []).map((h: Record<string, unknown>) => ({
+            id: h.id as string,
+            salarioAnterior: Number(h.salario_anterior),
+            salarioNovo: Number(h.salario_novo),
+            dataReajuste: h.data_reajuste as string,
+            motivo: (h.motivo as string) || undefined,
+            registradoPor: (h.registrado_por as string) || undefined,
+          })),
+        }))
         setFuncBeneficios(prev => ({
           ...prev,
           [funcId]: (data || []).map(b => ({
@@ -489,6 +549,71 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                         </div>
                       )}
 
+                      {/* Historico salarial */}
+                      {(funcHistorico[f.id] || []).length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mb-2">
+                            <TrendingUp size={12} /> Historico Salarial
+                          </p>
+                          <div className="space-y-1">
+                            {(funcHistorico[f.id] || []).map(h => (
+                              <div key={h.id} className="flex items-center justify-between px-2.5 py-1.5 bg-green-50/50 rounded text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500">{new Date(h.dataReajuste + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                  <span className="text-gray-400">R$ {h.salarioAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className="font-semibold text-green-700">R$ {h.salarioNovo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                {h.motivo && <span className="text-gray-400">{h.motivo}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reajuste salarial inline */}
+                      {reajusteId === f.id && (
+                        <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                          <p className="text-xs font-semibold text-green-700 mb-2">
+                            Reajuste salarial - {f.nome}
+                            {f.salario && <span className="font-normal text-gray-500 ml-2">(atual: R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</span>}
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-green-600 mb-0.5">Novo salario (R$) *</label>
+                              <input type="number" step="0.01" value={reajusteForm.salarioNovo}
+                                onChange={e => setReajusteForm({ ...reajusteForm, salarioNovo: e.target.value })}
+                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400" placeholder="0,00" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-green-600 mb-0.5">Motivo</label>
+                              <input type="text" value={reajusteForm.motivo}
+                                onChange={e => setReajusteForm({ ...reajusteForm, motivo: e.target.value })}
+                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400" placeholder="Ex: Dissidio, Merito..." />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-green-600 mb-0.5">Registrado por</label>
+                              <select value={reajusteForm.registradoPor}
+                                onChange={e => setReajusteForm({ ...reajusteForm, registradoPor: e.target.value })}
+                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400">
+                                <option value="">Selecione...</option>
+                                {funcionarios.filter(fn => fn.status === 'ativo').map(fn => (
+                                  <option key={fn.id} value={fn.nome}>{fn.nome}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={() => { setReajusteId(null); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
+                              className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                            <button onClick={() => handleReajuste(f.id)} disabled={!reajusteForm.salarioNovo || saving}
+                              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                              {saving ? 'Salvando...' : 'Confirmar Reajuste'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Demitir modal inline */}
                       {demitindoId === f.id && (
                         <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
@@ -527,6 +652,15 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                             <Pencil size={12} />
                             Editar
                           </button>
+                          {f.status === 'ativo' && (
+                            <button
+                              onClick={() => { setReajusteId(f.id); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                            >
+                              <DollarSign size={12} />
+                              Reajuste
+                            </button>
+                          )}
                           {f.status === 'ativo' && onDemitir && (
                             <button
                               onClick={() => { setDemitindoId(f.id); setDataDemissao(new Date().toISOString().split('T')[0]) }}
