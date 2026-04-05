@@ -241,6 +241,50 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
     setFuncionarios(prev => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome)))
   }
 
+  const handleUpdateFuncionario = async (id: string, updates: Partial<Funcionario>) => {
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.nome !== undefined) dbUpdates.nome = updates.nome
+    if (updates.cpf !== undefined) dbUpdates.cpf = updates.cpf || null
+    if (updates.telefone !== undefined) dbUpdates.telefone = updates.telefone || null
+    if (updates.email !== undefined) dbUpdates.email = updates.email || null
+    if (updates.cargoId !== undefined) dbUpdates.cargo_id = updates.cargoId || null
+    if (updates.unidadeId !== undefined) dbUpdates.unidade_id = updates.unidadeId || null
+    if (updates.dataAdmissao !== undefined) dbUpdates.data_admissao = updates.dataAdmissao || null
+    if (updates.salario !== undefined) dbUpdates.salario = updates.salario || null
+    if (updates.tipoContrato !== undefined) dbUpdates.tipo_contrato = updates.tipoContrato || null
+    if (updates.jornada !== undefined) dbUpdates.jornada = updates.jornada || null
+    if (updates.observacao !== undefined) dbUpdates.observacao = updates.observacao || null
+
+    const { data, error } = await supabase
+      .from('funcionarios')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select('*, cargos(nome), unidades(nome)')
+      .single()
+    if (error) throw error
+
+    setFuncionarios(prev => prev.map(f => f.id === id ? {
+      ...f,
+      ...updates,
+      cargoNome: data.cargos?.nome || undefined,
+      unidadeNome: data.unidades?.nome || undefined,
+    } : f))
+  }
+
+  const handleDemitirFuncionario = async (id: string, dataDemissao: string) => {
+    const { error } = await supabase
+      .from('funcionarios')
+      .update({ status: 'inativo', data_demissao: dataDemissao })
+      .eq('id', id)
+    if (error) throw error
+
+    setFuncionarios(prev => prev.map(f => f.id === id ? {
+      ...f,
+      status: 'inativo',
+      dataDemissao,
+    } : f))
+  }
+
   const handleAddOcorrencia = async (o: Omit<Ocorrencia, 'id' | 'funcionarioNome'>) => {
     const { data, error } = await supabase
       .from('ocorrencias')
@@ -284,7 +328,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
       {!connected && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex items-center gap-2 text-xs text-amber-700">
           <WifiOff size={14} />
-          Modulo de Pessoas requer conexao com Supabase. Rode o migration_v3_pessoas.sql primeiro.
+          Modulo de Pessoas esta sem conexao com o banco de dados. Verifique sua internet e tente novamente.
         </div>
       )}
 
@@ -314,6 +358,8 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
           cargos={cargos}
           unidades={unidades}
           onAdd={handleAddFuncionario}
+          onUpdate={handleUpdateFuncionario}
+          onDemitir={handleDemitirFuncionario}
         />
       )}
       {activeTab === 'cargos' && (

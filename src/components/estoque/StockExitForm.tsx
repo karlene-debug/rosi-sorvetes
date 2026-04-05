@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Trash2, Send, CheckCircle } from 'lucide-react'
-import type { Produto, CategoriaProduto } from '@/data/productTypes'
+import type { Produto, CategoriaProduto, EstoquePorUnidade } from '@/data/productTypes'
 import { categoriaLabels } from '@/data/productTypes'
 
 interface LineItem {
@@ -13,6 +13,7 @@ interface LineItem {
 interface StockExitFormProps {
   produtos: Produto[]
   colaboradores: string[]
+  estoqueAtual?: EstoquePorUnidade[]
   onSubmit: (items: { produtoId: string; produtoNome: string; quantidade: number; unidade: string }[]) => void
 }
 
@@ -22,7 +23,7 @@ const categoriasSaida: CategoriaProduto[] = [
   'complemento', 'descartavel', 'bebida',
 ]
 
-export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFormProps) {
+export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSubmit }: StockExitFormProps) {
   const [responsavel, setResponsavel] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { id: 1, produtoId: '', quantidade: 1, unidade: 'Balde' },
@@ -63,8 +64,21 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
     }))
   }
 
+  // Mapa de estoque para validacao
+  const getSaldo = (produtoId: string): number => {
+    const entries = estoqueAtual.filter(e => e.produtoId === produtoId)
+    return entries.reduce((sum, e) => sum + e.saldo, 0)
+  }
+
+  // Verificar itens com estoque insuficiente
+  const itensComEstoqueInsuficiente = items.filter(i => {
+    if (!i.produtoId) return false
+    const saldo = getSaldo(i.produtoId)
+    return i.quantidade > saldo
+  })
+
   const totalItems = items.reduce((sum, i) => sum + i.quantidade, 0)
-  const isValid = responsavel && items.every(i => i.produtoId && i.quantidade > 0)
+  const isValid = responsavel && items.every(i => i.produtoId && i.quantidade > 0) && itensComEstoqueInsuficiente.length === 0
 
   const handleSubmit = () => {
     if (!isValid) return
@@ -115,17 +129,27 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
 
         {/* Responsavel */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
-          <select
-            value={responsavel}
-            onChange={e => setResponsavel(e.target.value)}
-            className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
-          >
-            <option value="">Selecione seu nome...</option>
-            {colaboradores.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel *</label>
+          <div className="relative">
+            <input
+              type="text"
+              list="colaboradores-saida"
+              value={responsavel}
+              onChange={e => setResponsavel(e.target.value)}
+              className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
+              placeholder="Digite ou selecione o nome..."
+            />
+            <datalist id="colaboradores-saida">
+              {colaboradores.map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+          {colaboradores.length === 0 && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              Dica: cadastre funcionarios em Pessoas para que aparecam como sugestao aqui.
+            </p>
+          )}
         </div>
 
         {/* Items */}
@@ -139,6 +163,8 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
 
           {items.map((item, index) => {
             const selectedProd = produtosAtivos.find(p => p.id === item.produtoId)
+            const saldo = item.produtoId ? getSaldo(item.produtoId) : null
+            const estoqueInsuficiente = saldo !== null && item.quantidade > saldo
             return (
               <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px_40px] gap-2 sm:gap-3 p-3 sm:p-0 bg-gray-50 sm:bg-transparent rounded-lg sm:rounded-none">
                 <div>
@@ -146,7 +172,7 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
                   <select
                     value={item.produtoId}
                     onChange={e => updateLine(item.id, 'produtoId', e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
+                    className={`w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0] ${estoqueInsuficiente ? 'border-red-300' : 'border-gray-200'}`}
                   >
                     <option value="">Selecione o produto...</option>
                     {grouped.map(g => (
@@ -160,6 +186,14 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
                       </optgroup>
                     ))}
                   </select>
+                  {item.produtoId && saldo !== null && (
+                    <span className={`text-[10px] mt-0.5 block ${estoqueInsuficiente ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                      {estoqueInsuficiente
+                        ? `Estoque insuficiente! Saldo: ${saldo}`
+                        : `Saldo: ${saldo} ${selectedProd?.unidadeMedida || ''}`
+                      }
+                    </span>
+                  )}
                 </div>
                 <div>
                   {index === 0 && <span className="text-xs text-gray-500 sm:hidden mb-1 block">Quantidade</span>}
@@ -208,14 +242,21 @@ export function StockExitForm({ produtos, colaboradores, onSubmit }: StockExitFo
           <div className="text-sm text-gray-600">
             <span className="font-medium">{items.filter(i => i.produtoId).length}</span> produto(s) · <span className="font-medium">{totalItems}</span> unidade(s) total
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send size={16} />
-            Registrar Saida
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleSubmit}
+              disabled={!isValid}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send size={16} />
+              Registrar Saida
+            </button>
+            {!isValid && (
+              <p className="text-[10px] text-amber-500">
+                {!responsavel ? 'Preencha o responsavel' : itensComEstoqueInsuficiente.length > 0 ? 'Corrija os itens com estoque insuficiente' : 'Selecione produto e quantidade'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

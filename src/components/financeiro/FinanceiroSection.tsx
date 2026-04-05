@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Building, BookOpen, RefreshCw, FileText, Loader2, WifiOff, ShoppingCart, Calculator, BarChart3 } from 'lucide-react'
+import { Building, BookOpen, RefreshCw, FileText, Loader2, WifiOff, ShoppingCart, Calculator, BarChart3, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FornecedorManager } from './FornecedorManager'
 import { PlanoContasView } from './PlanoContasView'
@@ -8,16 +8,18 @@ import { ContasManager } from './ContasManager'
 import { EntradaNFManager } from './EntradaNFManager'
 import { CustoProducao } from './CustoProducao'
 import { DREReport } from './DREReport'
+import { ImportVendasManager } from './ImportVendasManager'
 import type { PlanoContas, Fornecedor, CustoFixo, Conta, SituacaoConta } from '@/data/financeData'
 import type { Unidade, Produto } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 import * as dbV2 from '@/lib/database_v2'
 
-type FinTab = 'contas_pagar' | 'entrada_nf' | 'dre' | 'custo_producao' | 'custos_fixos' | 'fornecedores' | 'plano_contas'
+type FinTab = 'contas_pagar' | 'entrada_nf' | 'vendas' | 'dre' | 'custo_producao' | 'custos_fixos' | 'fornecedores' | 'plano_contas'
 
 const tabs: { id: FinTab; label: string; icon: React.ReactNode }[] = [
   { id: 'contas_pagar', label: 'Contas a Pagar', icon: <FileText size={16} /> },
   { id: 'entrada_nf', label: 'Entrada NF', icon: <ShoppingCart size={16} /> },
+  { id: 'vendas', label: 'Vendas (PDF)', icon: <Upload size={16} /> },
   { id: 'dre', label: 'DRE', icon: <BarChart3 size={16} /> },
   { id: 'custo_producao', label: 'Custo Producao', icon: <Calculator size={16} /> },
   { id: 'custos_fixos', label: 'Custos Fixos', icon: <RefreshCw size={16} /> },
@@ -360,6 +362,9 @@ export function FinanceiroSection({ unidades = [] }: FinanceiroSectionProps) {
           unidades={unidades}
           onSubmit={handleEntradaNF}
         />
+      )}
+      {activeTab === 'vendas' && (
+        <ImportVendasManager unidades={unidades} />
       )}
       {activeTab === 'dre' && (
         <DREReport contas={contas} planoContas={planoContas} unidades={unidades} />

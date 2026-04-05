@@ -4,6 +4,7 @@ import { DollarSign, Package, Users, AlertTriangle, ArrowUpRight, ArrowDownRight
 import { cn } from '@/lib/utils'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
+import * as dbV2 from '@/lib/database_v2'
 
 interface DashboardExecutivoProps {
   unidades: Unidade[]
@@ -12,6 +13,8 @@ interface DashboardExecutivoProps {
 
 interface DashboardData {
   // Financeiro
+  faturamentoMes: number
+  faturamentoMesAnterior: number
   totalDespesasMes: number
   totalDespesasMesAnterior: number
   despesasPorGrupo: { nome: string; valor: number }[]
@@ -157,7 +160,21 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         .filter((m: { tipo: string }) => m.tipo === 'saida')
         .reduce((s: number, m: { quantidade: number }) => s + m.quantidade, 0)
 
+      // Faturamento (receita de vendas importadas)
+      let faturamentoMes = 0
+      let faturamentoMesAnterior = 0
+      try {
+        const fatMes = await dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro)
+        faturamentoMes = fatMes?.total || 0
+        const fatAnt = await dbV2.fetchFaturamentoMensal(mesAnterior, anoAnterior)
+        faturamentoMesAnterior = fatAnt?.total || 0
+      } catch {
+        // tabela pode nao existir
+      }
+
       setData({
+        faturamentoMes,
+        faturamentoMesAnterior,
         totalDespesasMes,
         totalDespesasMesAnterior,
         despesasPorGrupo,
@@ -232,17 +249,41 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Faturamento placeholder */}
-        <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 border-dashed opacity-70">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-11 h-11 bg-gray-100 rounded-xl flex items-center justify-center">
-              <DollarSign size={22} className="text-gray-400" />
+        {/* Faturamento */}
+        {data.faturamentoMes > 0 ? (
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center">
+                <DollarSign size={22} className="text-green-600" />
+              </div>
+              {data.faturamentoMesAnterior > 0 && (() => {
+                const varFat = ((data.faturamentoMes - data.faturamentoMesAnterior) / data.faturamentoMesAnterior) * 100
+                return (
+                  <span className={cn(
+                    'flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full',
+                    varFat > 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+                  )}>
+                    {varFat > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                    {Math.abs(varFat).toFixed(1)}%
+                  </span>
+                )
+              })()}
             </div>
+            <p className="text-2xl font-bold text-green-700">{formatCurrency(data.faturamentoMes)}</p>
+            <p className="text-sm text-gray-500">Faturamento {mesFiltroNome}</p>
           </div>
-          <p className="text-2xl font-bold text-gray-400">--</p>
-          <p className="text-sm text-gray-400">Faturamento</p>
-          <p className="text-xs text-gray-400 mt-1">A integrar (DataCaixa/iFood)</p>
-        </div>
+        ) : (
+          <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 border-dashed opacity-70">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-11 h-11 bg-gray-100 rounded-xl flex items-center justify-center">
+                <DollarSign size={22} className="text-gray-400" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-gray-400">--</p>
+            <p className="text-sm text-gray-400">Faturamento</p>
+            <p className="text-xs text-gray-400 mt-1">Importe PDF em Financeiro &gt; Vendas</p>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between mb-3">
@@ -458,24 +499,49 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
       {/* Resultado Section */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <h2 className="text-base font-bold text-gray-800 mb-4">Resultado - {mesFiltroNome} {anoFiltro}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
-            <p className="text-sm text-gray-400 mb-1">Lucro / Prejuizo</p>
-            <p className="text-2xl font-bold text-gray-400">--</p>
-            <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
-            <p className="text-sm text-gray-400 mb-1">Margem</p>
-            <p className="text-2xl font-bold text-gray-400">-- %</p>
-            <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
-          </div>
-        </div>
-        <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-4">
-          <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-blue-700">
-            Integre o DataCaixa ou iFood para ver faturamento, lucro e margem.
-          </p>
-        </div>
+        {data.faturamentoMes > 0 ? (() => {
+          const resultado = data.faturamentoMes - data.totalDespesasMes
+          const margem = data.faturamentoMes > 0 ? (resultado / data.faturamentoMes) * 100 : 0
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={cn('rounded-xl p-4', resultado >= 0 ? 'bg-green-50' : 'bg-red-50')}>
+                <p className="text-sm text-gray-600 mb-1">Lucro / Prejuizo</p>
+                <p className={cn('text-2xl font-bold', resultado >= 0 ? 'text-green-700' : 'text-red-600')}>
+                  {formatCurrency(resultado)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Faturamento - Despesas</p>
+              </div>
+              <div className={cn('rounded-xl p-4', margem >= 0 ? 'bg-green-50' : 'bg-red-50')}>
+                <p className="text-sm text-gray-600 mb-1">Margem</p>
+                <p className={cn('text-2xl font-bold', margem >= 0 ? 'text-green-700' : 'text-red-600')}>
+                  {margem.toFixed(1)}%
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Resultado / Faturamento</p>
+              </div>
+            </div>
+          )
+        })() : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
+                <p className="text-sm text-gray-400 mb-1">Lucro / Prejuizo</p>
+                <p className="text-2xl font-bold text-gray-400">--</p>
+                <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 border-dashed opacity-70">
+                <p className="text-sm text-gray-400 mb-1">Margem</p>
+                <p className="text-2xl font-bold text-gray-400">-- %</p>
+                <p className="text-xs text-gray-400 mt-1">Necessita dados de faturamento</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-4">
+              <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-blue-700">
+                Importe o PDF de vendas em Financeiro &gt; Vendas (PDF) para ver faturamento, lucro e margem.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

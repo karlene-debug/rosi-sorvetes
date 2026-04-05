@@ -115,17 +115,27 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
 
         {/* Responsavel */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel</label>
-          <select
-            value={responsavel}
-            onChange={e => setResponsavel(e.target.value)}
-            className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300"
-          >
-            <option value="">Selecione seu nome...</option>
-            {colaboradores.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel *</label>
+          <div className="relative">
+            <input
+              type="text"
+              list="colaboradores-producao"
+              value={responsavel}
+              onChange={e => setResponsavel(e.target.value)}
+              className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300"
+              placeholder="Digite ou selecione o nome..."
+            />
+            <datalist id="colaboradores-producao">
+              {colaboradores.map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+          {colaboradores.length === 0 && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              Dica: cadastre funcionarios em Pessoas para que aparecam como sugestao aqui.
+            </p>
+          )}
         </div>
 
         {/* Items */}
@@ -206,14 +216,21 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
           <div className="text-sm text-gray-600">
             <span className="font-medium">{items.filter(i => i.produtoId).length}</span> produto(s) · <span className="font-medium">{totalItems}</span> unidade(s) total
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Factory size={16} />
-            Registrar Producao
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleSubmit}
+              disabled={!isValid}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Factory size={16} />
+              Registrar Producao
+            </button>
+            {!isValid && (
+              <p className="text-[10px] text-amber-500">
+                {!responsavel ? 'Preencha o responsavel' : 'Selecione produto e quantidade'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

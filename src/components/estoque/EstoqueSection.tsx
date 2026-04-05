@@ -14,7 +14,7 @@ import { ReceitasManager } from './ReceitasManager'
 import { VitrineDigital } from './VitrineDigital'
 import { AlertasEstoque } from './AlertasEstoque'
 import type { StockMovement, InventoryCount } from '@/data/stockData'
-import type { Produto, Unidade } from '@/data/productTypes'
+import type { Produto, Unidade, EstoquePorUnidade } from '@/data/productTypes'
 import { initialMovements, initialInventories } from '@/data/stockData'
 import { supabase } from '@/lib/supabase'
 import * as db from '@/lib/database'
@@ -44,6 +44,7 @@ export function EstoqueSection() {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [nomesFuncionarios, setNomesFuncionarios] = useState<string[]>([])
+  const [estoque, setEstoque] = useState<EstoquePorUnidade[]>([])
   const [loading, setLoading] = useState(true)
   const [useSupabase, setUseSupabase] = useState(false)
 
@@ -80,14 +81,16 @@ export function EstoqueSection() {
         // Tabela funcionarios pode nao existir ainda
       }
 
-      // Carregar produtos e unidades v2
+      // Carregar produtos, unidades e estoque v2
       try {
-        const [prods, unids] = await Promise.all([
+        const [prods, unids, est] = await Promise.all([
           dbV2.fetchProdutos(),
           dbV2.fetchUnidades(),
+          dbV2.fetchEstoquePorUnidade(),
         ])
         setProdutos(prods)
         setUnidades(unids)
+        setEstoque(est)
       } catch {
         // Tabelas podem nao existir ainda
       }
@@ -444,6 +447,7 @@ export function EstoqueSection() {
         <StockExitForm
           produtos={produtos}
           colaboradores={nomesFuncionarios}
+          estoqueAtual={estoque}
           onSubmit={(items) => handleAddMovementsV2('saida', items)}
         />
       )}

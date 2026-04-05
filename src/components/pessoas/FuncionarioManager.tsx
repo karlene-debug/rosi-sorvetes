@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp } from 'lucide-react'
+import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, X } from 'lucide-react'
 import type { Cargo, Funcionario, Beneficio } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
@@ -41,13 +41,19 @@ interface FuncionarioManagerProps {
   cargos: Cargo[]
   unidades: Unidade[]
   onAdd: (f: Omit<Funcionario, 'id' | 'cargoNome' | 'unidadeNome'>) => Promise<void>
+  onUpdate?: (id: string, f: Partial<Funcionario>) => Promise<void>
+  onDemitir?: (id: string, dataDemissao: string) => Promise<void>
 }
 
-export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: FuncionarioManagerProps) {
+export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUpdate, onDemitir }: FuncionarioManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('Funcionario cadastrado com sucesso!')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [demitindoId, setDemitindoId] = useState<string | null>(null)
+  const [dataDemissao, setDataDemissao] = useState('')
   const [funcBeneficios, setFuncBeneficios] = useState<Record<string, Beneficio[]>>({})
   const [form, setForm] = useState({
     nome: '',
@@ -70,7 +76,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
     if (!form.nome.trim()) return
     setSaving(true)
     try {
-      await onAdd({
+      const funcData = {
         nome: form.nome.trim(),
         cpf: form.cpf || undefined,
         telefone: form.telefone || undefined,
@@ -81,9 +87,15 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
         salario: form.salario ? parseFloat(form.salario) : undefined,
         tipoContrato: form.tipoContrato || undefined,
         jornada: form.jornada || undefined,
-        status: 'ativo',
+        status: 'ativo' as const,
         observacao: form.observacao || undefined,
-      })
+      }
+
+      if (editingId && onUpdate) {
+        await onUpdate(editingId, funcData)
+      } else {
+        await onAdd(funcData)
+      }
 
       // Salvar beneficios ativos do novo funcionario
       const ativosBeneficios = beneficiosForm.filter(b => b.ativo)
@@ -111,9 +123,10 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
         }
       }
 
-      setForm({ nome: '', cpf: '', telefone: '', email: '', cargoId: '', unidadeId: '', dataAdmissao: '', salario: '', tipoContrato: 'clt', jornada: '', observacao: '' })
-      setBeneficiosForm(beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' })))
+      resetForm()
       setShowForm(false)
+      setEditingId(null)
+      setSuccessMsg(editingId ? 'Funcionario atualizado com sucesso!' : 'Funcionario cadastrado com sucesso!')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
     } catch (err) {
@@ -121,6 +134,53 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
     } finally {
       setSaving(false)
     }
+  }
+
+  const resetForm = () => {
+    setForm({ nome: '', cpf: '', telefone: '', email: '', cargoId: '', unidadeId: '', dataAdmissao: '', salario: '', tipoContrato: 'clt', jornada: '', observacao: '' })
+    setBeneficiosForm(beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' })))
+  }
+
+  const handleEdit = (f: Funcionario) => {
+    setForm({
+      nome: f.nome,
+      cpf: f.cpf || '',
+      telefone: f.telefone || '',
+      email: f.email || '',
+      cargoId: f.cargoId || '',
+      unidadeId: f.unidadeId || '',
+      dataAdmissao: f.dataAdmissao || '',
+      salario: f.salario ? String(f.salario) : '',
+      tipoContrato: f.tipoContrato || 'clt',
+      jornada: f.jornada || '',
+      observacao: f.observacao || '',
+    })
+    setEditingId(f.id)
+    setShowForm(true)
+    setExpandedId(null)
+  }
+
+  const handleDemitir = async () => {
+    if (!demitindoId || !dataDemissao || !onDemitir) return
+    setSaving(true)
+    try {
+      await onDemitir(demitindoId, dataDemissao)
+      setDemitindoId(null)
+      setDataDemissao('')
+      setSuccessMsg('Funcionario demitido. Status alterado para inativo.')
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
+    } catch (err) {
+      console.error('Erro ao demitir:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelForm = () => {
+    setShowForm(false)
+    setEditingId(null)
+    resetForm()
   }
 
   const toggleBeneficio = (tipo: string) => {
@@ -175,7 +235,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
       {showSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
-          <p className="text-sm font-medium text-green-800">Funcionario cadastrado com sucesso!</p>
+          <p className="text-sm font-medium text-green-800">{successMsg}</p>
         </div>
       )}
 
@@ -190,18 +250,28 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
               <p className="text-xs text-gray-500">{ativos.length} ativo(s) de {funcionarios.length} total</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
-          >
-            <UserPlus size={16} />
-            Novo Funcionario
-          </button>
+          {!showForm && (
+            <button
+              onClick={() => { resetForm(); setEditingId(null); setShowForm(true) }}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
+            >
+              <UserPlus size={16} />
+              Novo Funcionario
+            </button>
+          )}
         </div>
 
         {/* Form */}
         {showForm && (
           <div className="mb-5 p-4 bg-gray-50 rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700">
+                {editingId ? 'Editar Funcionario' : 'Novo Funcionario'}
+              </p>
+              <button onClick={handleCancelForm} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Dados Pessoais</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -326,10 +396,10 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" rows={2} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
+              <button onClick={handleCancelForm} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
               <button onClick={handleSubmit} disabled={!form.nome.trim() || saving}
                 className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
-                {saving ? 'Salvando...' : 'Cadastrar'}
+                {saving ? 'Salvando...' : editingId ? 'Salvar Alteracoes' : 'Cadastrar'}
               </button>
             </div>
           </div>
@@ -339,7 +409,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
         <div className="space-y-2">
           {funcionarios.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400">
-              Nenhum funcionario cadastrado. Rode o migration_v3_pessoas.sql e cadastre a equipe.
+              Nenhum funcionario cadastrado. Clique em "+ Novo Funcionario" para comecar.
             </div>
           ) : (
             funcionarios.map(f => {
@@ -378,6 +448,9 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
                         {f.dataAdmissao && (
                           <div><span className="text-gray-400">Admissao:</span> <span className="text-gray-700">{new Date(f.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>
                         )}
+                        {f.dataDemissao && (
+                          <div><span className="text-gray-400">Demissao:</span> <span className="text-red-600">{new Date(f.dataDemissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>
+                        )}
                         {f.jornada && (
                           <div><span className="text-gray-400">Jornada:</span> <span className="text-gray-700">{f.jornada}</span></div>
                         )}
@@ -413,6 +486,56 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd }: Fu
                       {f.observacao && (
                         <div className="mt-2 text-xs text-gray-500">
                           <span className="text-gray-400">Obs:</span> {f.observacao}
+                        </div>
+                      )}
+
+                      {/* Demitir modal inline */}
+                      {demitindoId === f.id && (
+                        <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <p className="text-xs font-semibold text-red-700 mb-2">Confirmar demissao de {f.nome}</p>
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <label className="block text-[10px] text-red-600 mb-0.5">Data de demissao *</label>
+                              <input
+                                type="date"
+                                value={dataDemissao}
+                                onChange={e => setDataDemissao(e.target.value)}
+                                className="px-2 py-1.5 bg-white border border-red-200 rounded text-xs focus:outline-none focus:border-red-400"
+                              />
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <button onClick={() => { setDemitindoId(null); setDataDemissao('') }}
+                                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">
+                                Cancelar
+                              </button>
+                              <button onClick={handleDemitir} disabled={!dataDemissao || saving}
+                                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                                {saving ? 'Processando...' : 'Confirmar Demissao'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      {demitindoId !== f.id && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                          <button
+                            onClick={() => handleEdit(f)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+                          >
+                            <Pencil size={12} />
+                            Editar
+                          </button>
+                          {f.status === 'ativo' && onDemitir && (
+                            <button
+                              onClick={() => { setDemitindoId(f.id); setDataDemissao(new Date().toISOString().split('T')[0]) }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                            >
+                              <UserX size={12} />
+                              Demitir
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
