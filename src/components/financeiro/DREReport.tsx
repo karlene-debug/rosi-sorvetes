@@ -83,7 +83,9 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
 
     for (const c of contasFiltradas) {
       const plano = c.planoContasId ? planoMap.get(c.planoContasId) : null
-      const grupo = plano?.grupo || 'administrativo'
+      // Sem plano de contas -> vai para "Nao classificado" (renderizado separado abaixo)
+      if (!plano) continue
+      const grupo = plano.grupo
       const entry = map.get(grupo)!
 
       // Agrupar por descricao/plano
