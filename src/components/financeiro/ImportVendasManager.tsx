@@ -118,12 +118,20 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
 
       setStep('success')
       loadHistory()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+    } catch (err: unknown) {
+      let msg = 'Erro ao salvar dados.'
+      if (err instanceof Error) {
+        msg = err.message
+      } else if (err && typeof err === 'object') {
+        const e = err as Record<string, unknown>
+        msg = (e.message || e.error || e.details || e.hint || JSON.stringify(err)) as string
+      }
       if (msg.includes('relation') && msg.includes('does not exist')) {
-        setError('Tabelas de vendas nao encontradas. Rode a migration_v7_vendas.sql no Supabase primeiro.')
+        setError('Tabelas de vendas nao encontradas. Rode a migration_v7_vendas.sql no Supabase SQL Editor primeiro.')
+      } else if (msg.includes('duplicate key') || msg.includes('unique constraint')) {
+        setError('Dados duplicados: ja existe faturamento importado para este periodo/unidade. Exclua o upload anterior primeiro.')
       } else {
-        setError(msg || 'Erro ao salvar dados.')
+        setError(msg)
       }
     } finally {
       setSaving(false)
