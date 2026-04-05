@@ -119,7 +119,12 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
       setStep('success')
       loadHistory()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar dados.')
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('relation') && msg.includes('does not exist')) {
+        setError('Tabelas de vendas nao encontradas. Rode a migration_v7_vendas.sql no Supabase primeiro.')
+      } else {
+        setError(msg || 'Erro ao salvar dados.')
+      }
     } finally {
       setSaving(false)
     }
