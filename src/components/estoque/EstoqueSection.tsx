@@ -435,7 +435,7 @@ export function EstoqueSection() {
 
       {/* Content */}
       {activeTab === 'indicadores' && (
-        <StockDashboard produtos={produtos} movements={movements} />
+        <StockDashboard produtos={produtos} movements={movements} estoque={estoque} />
       )}
       {activeTab === 'vitrine' && (
         <VitrineDigital produtos={produtos} movements={movements} />

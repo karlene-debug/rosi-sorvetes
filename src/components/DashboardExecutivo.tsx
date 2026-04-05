@@ -72,67 +72,68 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
       const anoAnterior = mesFiltro === 1 ? anoFiltro - 1 : anoFiltro
       const hoje = new Date().toISOString().split('T')[0]
 
-      // Contas do mes selecionado
-      const { data: contasMes } = await supabase
-        .from('contas')
-        .select('valor, situacao, plano_contas(nome, grupo)')
-        .eq('mes_referencia', mesFiltro)
-        .eq('ano_referencia', anoFiltro)
-        .neq('situacao', 'cancelado')
-
-      // Contas do mes anterior
-      const { data: contasMesAnt } = await supabase
-        .from('contas')
-        .select('valor')
-        .eq('mes_referencia', mesAnterior)
-        .eq('ano_referencia', anoAnterior)
-        .neq('situacao', 'cancelado')
-
-      // Ultimas contas pendentes/atrasadas
-      const { data: ultimasContas } = await supabase
-        .from('contas')
-        .select('descricao, valor, situacao, data_vencimento')
-        .in('situacao', ['pendente', 'atrasado'])
-        .order('data_vencimento')
-        .limit(6)
-
-      // Produtos
-      const { data: produtosData } = await supabase
-        .from('produtos')
-        .select('id')
-        .eq('status', 'ativo')
-
-      // Funcionarios ativos
-      const { data: funcData } = await supabase
-        .from('funcionarios')
-        .select('id')
-        .eq('status', 'ativo')
-
-      // Movimentacoes de hoje
-      const { data: movsHoje } = await supabase
-        .from('movimentacoes')
-        .select('tipo, quantidade')
-        .gte('data', hoje + 'T00:00:00')
-
-      // Despesas dos ultimos 6 meses pra grafico
-      const mesesChart: { mes: string; valor: number }[] = []
+      // Gerar meses para o grafico de 6 meses
       const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      const mesesRange: { m: number; a: number; label: string }[] = []
       for (let i = 5; i >= 0; i--) {
         const d = new Date(anoFiltro, mesFiltro - 1 - i, 1)
         const m = d.getMonth() + 1
         const a = d.getFullYear()
-        const { data: cMes } = await supabase
-          .from('contas')
-          .select('valor')
-          .eq('mes_referencia', m)
-          .eq('ano_referencia', a)
-          .neq('situacao', 'cancelado')
-        const total = (cMes || []).reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
-        mesesChart.push({ mes: `${mesesAbrev[m - 1]}/${String(a).slice(2)}`, valor: total })
+        mesesRange.push({ m, a, label: `${mesesAbrev[m - 1]}/${String(a).slice(2)}` })
       }
+
+      // Buscar TODAS as contas dos ultimos 6 meses de uma vez (1 query em vez de 6+2)
+      const [
+        { data: contasTodas },
+        { data: ultimasContas },
+        { data: produtosData },
+        { data: funcData },
+        { data: movsHoje },
+        fatMesResult,
+        fatAntResult,
+      ] = await Promise.all([
+        // 1. Todas as contas dos ultimos 6 meses (cobre mes atual + anterior + grafico)
+        supabase
+          .from('contas')
+          .select('valor, situacao, mes_referencia, ano_referencia, plano_contas(nome, grupo)')
+          .neq('situacao', 'cancelado')
+          .or(mesesRange.map(mr => `and(mes_referencia.eq.${mr.m},ano_referencia.eq.${mr.a})`).join(',')),
+        // 2. Contas pendentes/atrasadas
+        supabase
+          .from('contas')
+          .select('descricao, valor, situacao, data_vencimento')
+          .in('situacao', ['pendente', 'atrasado'])
+          .order('data_vencimento')
+          .limit(6),
+        // 3. Produtos ativos (count)
+        supabase.from('produtos').select('id').eq('status', 'ativo'),
+        // 4. Funcionarios ativos (count)
+        supabase.from('funcionarios').select('id').eq('status', 'ativo'),
+        // 5. Movimentacoes de hoje
+        supabase.from('movimentacoes').select('tipo, quantidade').gte('data', hoje + 'T00:00:00'),
+        // 6-7. Faturamento (receita importada)
+        dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro).catch(() => null),
+        dbV2.fetchFaturamentoMensal(mesAnterior, anoAnterior).catch(() => null),
+      ])
+
+      // Filtrar contas por mes para os diferentes usos
+      const contasMes = (contasTodas || []).filter(
+        (c: { mes_referencia: number; ano_referencia: number }) => c.mes_referencia === mesFiltro && c.ano_referencia === anoFiltro
+      )
+      const contasMesAnt = (contasTodas || []).filter(
+        (c: { mes_referencia: number; ano_referencia: number }) => c.mes_referencia === mesAnterior && c.ano_referencia === anoAnterior
+      )
+
+      // Grafico: despesas por mes (calculado dos dados ja carregados)
+      const mesesChart = mesesRange.map(mr => {
+        const contasMr = (contasTodas || []).filter(
+          (c: { mes_referencia: number; ano_referencia: number }) => c.mes_referencia === mr.m && c.ano_referencia === mr.a
+        )
+        return { mes: mr.label, valor: contasMr.reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0) }
+      })
       setDespesasMensais(mesesChart)
 
-      // Calcular despesas por grupo
+      // Despesas por grupo
       const grupoMap = new Map<string, number>()
       const grupoLabels: Record<string, string> = {
         gasto_pessoal: 'Pessoal',
@@ -141,7 +142,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         administrativo: 'Administrativo',
         impostos_financeiro: 'Impostos',
       }
-      for (const c of (contasMes || [])) {
+      for (const c of contasMes) {
         const grupo = (c.plano_contas as { grupo?: string } | null)?.grupo || 'outros'
         const label = grupoLabels[grupo] || 'Outros'
         grupoMap.set(label, (grupoMap.get(label) || 0) + Number(c.valor))
@@ -150,8 +151,8 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         .map(([nome, valor]) => ({ nome, valor }))
         .sort((a, b) => b.valor - a.valor)
 
-      const totalDespesasMes = (contasMes || []).reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
-      const totalDespesasMesAnterior = (contasMesAnt || []).reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
+      const totalDespesasMes = contasMes.reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
+      const totalDespesasMesAnterior = contasMesAnt.reduce((s: number, c: { valor: number }) => s + Number(c.valor), 0)
 
       const producaoHoje = (movsHoje || [])
         .filter((m: { tipo: string }) => m.tipo === 'producao')
@@ -160,17 +161,8 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         .filter((m: { tipo: string }) => m.tipo === 'saida')
         .reduce((s: number, m: { quantidade: number }) => s + m.quantidade, 0)
 
-      // Faturamento (receita de vendas importadas)
-      let faturamentoMes = 0
-      let faturamentoMesAnterior = 0
-      try {
-        const fatMes = await dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro)
-        faturamentoMes = fatMes?.total || 0
-        const fatAnt = await dbV2.fetchFaturamentoMensal(mesAnterior, anoAnterior)
-        faturamentoMesAnterior = fatAnt?.total || 0
-      } catch {
-        // tabela pode nao existir
-      }
+      const faturamentoMes = fatMesResult?.total || 0
+      const faturamentoMesAnterior = fatAntResult?.total || 0
 
       setData({
         faturamentoMes,
