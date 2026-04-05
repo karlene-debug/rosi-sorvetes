@@ -1,429 +1,266 @@
-import { useMemo, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
-import { AlertTriangle, TrendingUp, Package, ArrowDown, ArrowUp } from 'lucide-react'
+import { useMemo } from 'react'
+import { AlertTriangle, Package, ArrowUp, IceCream } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Produto, CategoriaProduto } from '@/data/productTypes'
-import { categoriaLabels } from '@/data/productTypes'
+import type { Produto, EstoquePorUnidade } from '@/data/productTypes'
 import type { StockMovement } from '@/data/stockData'
 
 interface StockDashboardProps {
   produtos: Produto[]
   movements: StockMovement[]
+  estoque?: EstoquePorUnidade[]
 }
 
-interface SaldoProduto {
+// Categorias agrupadas para as tabelas
+const GRUPO_SORVETE = ['sorvete'] as const
+const GRUPO_BOLO = ['bolo'] as const
+const GRUPO_ACAI = ['acai'] as const
+const GRUPO_INSUMO = ['insumo', 'embalagem', 'limpeza'] as const
+const GRUPO_OUTROS = ['milkshake', 'taca', 'calda', 'cobertura', 'complemento', 'descartavel', 'bebida', 'outros'] as const
+
+const CAPACIDADE_FILTROS = 30 // capacidade maxima de sabores de sorvete nos filtros
+
+interface SaldoItem {
   produtoId: string
-  produto: string
+  nome: string
   codigo?: string
-  categoria: CategoriaProduto
-  unidadeMedida: string
   saldo: number
+  unidade: string
 }
 
-interface TopProduto {
-  produtoId: string
-  produto: string
-  total: number
-}
+function getSaldosPorCategoria(estoque: EstoquePorUnidade[], produtos: Produto[], categorias: readonly string[]): SaldoItem[] {
+  // Agrupar saldos por produto (somar todas as unidades)
+  const saldoMap = new Map<string, SaldoItem>()
 
-interface MonthStat {
-  mes: string
-  producao: number
-  saida: number
-}
+  for (const e of estoque) {
+    const prod = produtos.find(p => p.id === e.produtoId)
+    if (!prod || !categorias.includes(prod.categoria)) continue
 
-const COLORS = ['#E91E63', '#F06292', '#F48FB1', '#F8BBD0', '#FCE4EC', '#AD1457', '#C2185B', '#D81B60', '#EC407A', '#FF80AB']
-
-function calcularSaldos(movements: StockMovement[], produtos: Produto[]): SaldoProduto[] {
-  // Accumulate saldo per produtoId (saborId in StockMovement maps to produtoId)
-  const saldoMap = new Map<string, number>()
-
-  for (const m of movements) {
-    const id = m.saborId
-    const prev = saldoMap.get(id) ?? 0
-    if (m.tipo === 'producao') {
-      saldoMap.set(id, prev + m.quantidade)
-    } else if (m.tipo === 'saida') {
-      saldoMap.set(id, prev - m.quantidade)
-    } else if (m.tipo === 'ajuste') {
-      saldoMap.set(id, prev + m.quantidade)
-    }
-  }
-
-  // Build result from produtos list, merging with calculated saldo
-  const result: SaldoProduto[] = produtos.map(p => ({
-    produtoId: p.id,
-    produto: p.nome,
-    codigo: p.codigo,
-    categoria: p.categoria,
-    unidadeMedida: p.unidadeMedida,
-    saldo: saldoMap.get(p.id) ?? 0,
-  }))
-
-  // Include produtos that appear in movements but are not in the produtos list
-  for (const [id, saldo] of saldoMap.entries()) {
-    if (!result.find(r => r.produtoId === id)) {
-      const mov = movements.find(m => m.saborId === id)
-      result.push({
-        produtoId: id,
-        produto: mov?.sabor ?? id,
-        categoria: 'outros',
-        unidadeMedida: 'un',
-        saldo,
+    const existing = saldoMap.get(e.produtoId)
+    if (existing) {
+      existing.saldo += e.saldo
+    } else {
+      saldoMap.set(e.produtoId, {
+        produtoId: e.produtoId,
+        nome: prod.nome,
+        codigo: prod.codigo,
+        saldo: e.saldo,
+        unidade: prod.unidadeMedida,
       })
     }
   }
 
-  return result.sort((a, b) => a.produto.localeCompare(b.produto))
-}
-
-function getTopProdutos(movements: StockMovement[], limit: number): TopProduto[] {
-  const map = new Map<string, TopProduto>()
-
-  for (const m of movements) {
-    if (m.tipo === 'saida') {
-      const entry = map.get(m.saborId)
-      if (entry) {
-        entry.total += m.quantidade
-      } else {
-        map.set(m.saborId, { produtoId: m.saborId, produto: m.sabor, total: m.quantidade })
-      }
+  // Incluir produtos dessas categorias que nao tem movimentacao (saldo 0)
+  for (const p of produtos) {
+    if (categorias.includes(p.categoria) && p.status === 'ativo' && !saldoMap.has(p.id)) {
+      saldoMap.set(p.id, {
+        produtoId: p.id,
+        nome: p.nome,
+        codigo: p.codigo,
+        saldo: 0,
+        unidade: p.unidadeMedida,
+      })
     }
   }
 
-  return Array.from(map.values())
-    .sort((a, b) => b.total - a.total)
-    .slice(0, limit)
+  return Array.from(saldoMap.values()).sort((a, b) => {
+    // Com estoque primeiro, depois por nome
+    if (a.saldo > 0 && b.saldo <= 0) return -1
+    if (a.saldo <= 0 && b.saldo > 0) return 1
+    return a.nome.localeCompare(b.nome)
+  })
 }
 
-function getMonthlyStats(movements: StockMovement[]): MonthStat[] {
-  const map = new Map<string, { producao: number; saida: number }>()
+function TabelaEstoque({ titulo, itens, capacidade, corTitulo, icone }: {
+  titulo: string
+  itens: SaldoItem[]
+  capacidade?: number
+  corTitulo: string
+  icone: React.ReactNode
+}) {
+  const comEstoque = itens.filter(i => i.saldo > 0).length
+  const total = itens.length
 
-  for (const m of movements) {
-    const mes = m.data.slice(0, 7) // "YYYY-MM"
-    const entry = map.get(mes) ?? { producao: 0, saida: 0 }
-    if (m.tipo === 'producao') entry.producao += m.quantidade
-    else if (m.tipo === 'saida') entry.saida += m.quantidade
-    map.set(mes, entry)
-  }
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className={cn('px-4 py-3 border-b border-gray-100 flex items-center justify-between', corTitulo)}>
+        <div className="flex items-center gap-2">
+          {icone}
+          <h3 className="text-sm font-semibold">{titulo}</h3>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          {capacidade && (
+            <span className={cn(
+              'px-2 py-0.5 rounded-full font-medium',
+              comEstoque >= capacidade ? 'bg-red-100 text-red-700' : comEstoque >= capacidade * 0.8 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+            )}>
+              {comEstoque}/{capacidade} filtros
+            </span>
+          )}
+          <span className="text-gray-500">{comEstoque} com estoque de {total}</span>
+        </div>
+      </div>
 
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([mes, stats]) => ({ mes, ...stats }))
+      {itens.length === 0 ? (
+        <div className="p-6 text-center text-xs text-gray-400">Nenhum produto cadastrado nesta categoria.</div>
+      ) : (
+        <div className="max-h-[400px] overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="text-left text-[10px] font-semibold text-gray-500 uppercase px-4 py-2 w-10">#</th>
+                <th className="text-left text-[10px] font-semibold text-gray-500 uppercase px-4 py-2">Produto</th>
+                <th className="text-center text-[10px] font-semibold text-gray-500 uppercase px-4 py-2 w-24">Qtd</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {itens.map((item, idx) => (
+                <tr key={item.produtoId} className={cn(
+                  'hover:bg-gray-50/50',
+                  item.saldo < 0 && 'bg-red-50/30',
+                  item.saldo === 0 && 'opacity-50',
+                )}>
+                  <td className="px-4 py-1.5 text-xs text-gray-400">{idx + 1}</td>
+                  <td className="px-4 py-1.5">
+                    <span className="text-sm text-gray-800">{item.nome}</span>
+                    {item.codigo && <span className="text-[10px] text-gray-400 ml-2">{item.codigo}</span>}
+                  </td>
+                  <td className="px-4 py-1.5 text-center">
+                    <span className={cn(
+                      'text-sm font-semibold px-2.5 py-0.5 rounded-full',
+                      item.saldo < 0 ? 'bg-red-100 text-red-700' :
+                      item.saldo === 0 ? 'text-gray-300' :
+                      item.saldo <= 2 ? 'bg-amber-100 text-amber-700' :
+                      'text-gray-800'
+                    )}>
+                      {item.saldo === 0 ? '-' : item.saldo}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
 }
 
-export function StockDashboard({ produtos, movements }: StockDashboardProps) {
-  const [viewMode, setViewMode] = useState<'todos' | 'comEstoque'>('comEstoque')
-  const [catFiltro, setCatFiltro] = useState<'sorvete' | 'outros' | 'todos'>('sorvete')
-  const [sortCol, setSortCol] = useState<'produto' | 'categoria' | 'saldo'>('saldo')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-
-  const toggleSort = (col: 'produto' | 'categoria' | 'saldo') => {
-    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir(col === 'saldo' ? 'desc' : 'asc') }
-  }
-
-  const saldos = useMemo(() => calcularSaldos(movements, produtos), [movements, produtos])
-  const topProdutos = useMemo(() => getTopProdutos(movements, 10), [movements])
-  const monthlyStats = useMemo(() => getMonthlyStats(movements), [movements])
+export function StockDashboard({ produtos, movements, estoque = [] }: StockDashboardProps) {
+  // Calcular saldos por grupo usando dados reais da view
+  const sorvetes = useMemo(() => getSaldosPorCategoria(estoque, produtos, GRUPO_SORVETE), [estoque, produtos])
+  const bolos = useMemo(() => getSaldosPorCategoria(estoque, produtos, GRUPO_BOLO), [estoque, produtos])
+  const acais = useMemo(() => getSaldosPorCategoria(estoque, produtos, GRUPO_ACAI), [estoque, produtos])
+  const insumos = useMemo(() => getSaldosPorCategoria(estoque, produtos, GRUPO_INSUMO), [estoque, produtos])
+  const outros = useMemo(() => getSaldosPorCategoria(estoque, produtos, GRUPO_OUTROS), [estoque, produtos])
 
   // KPIs
-  const totalEstoque = saldos.reduce((sum, s) => sum + Math.max(0, s.saldo), 0)
-  const produtosComEstoque = saldos.filter(s => s.saldo > 0).length
-  const produtosZerados = saldos.filter(s => s.saldo === 0).length
-  const produtosNegativos = saldos.filter(s => s.saldo < 0).length
+  const allItems = [...sorvetes, ...bolos, ...acais, ...insumos, ...outros]
+  const comEstoque = allItems.filter(i => i.saldo > 0).length
+  const negativos = allItems.filter(i => i.saldo < 0).length
+  const sorvetesAtivos = sorvetes.filter(s => s.saldo > 0).length
 
+  // Movimentacoes de hoje
   const today = new Date().toISOString().split('T')[0]
   const movHoje = movements.filter(m => m.data.startsWith(today))
   const producaoHoje = movHoje.filter(m => m.tipo === 'producao').reduce((s, m) => s + m.quantidade, 0)
   const saidaHoje = movHoje.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.quantidade, 0)
 
-  // Categorias sob demanda (nao alertar estoque zero)
-  const categoriasSobDemanda: CategoriaProduto[] = ['milkshake', 'taca']
-
-  // Sorvetes criticos (separado, mais visivel)
-  const sorvetesCriticos = saldos
-    .filter(s => s.categoria === 'sorvete' && s.saldo <= 2)
-    .sort((a, b) => a.saldo - b.saldo)
-
-  // Outros produtos criticos (sem milkshake/taca)
-  const outrosCriticos = saldos
-    .filter(s => s.categoria !== 'sorvete' && !categoriasSobDemanda.includes(s.categoria) && s.saldo <= 2)
-    .sort((a, b) => a.saldo - b.saldo)
-
-  // Pie chart data
-  const pieData = topProdutos.slice(0, 6).map(p => ({ name: p.produto, value: p.total }))
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard
-          title="Estoque Total"
-          value={totalEstoque}
-          subtitle={`${produtosComEstoque} produto(s) com estoque`}
-          icon={<Package size={20} />}
-          color="pink"
-        />
-        <KPICard
-          title="Producao Hoje"
-          value={producaoHoje}
-          subtitle="unidades produzidas"
-          icon={<ArrowUp size={20} />}
-          color="blue"
-        />
-        <KPICard
-          title="Saidas Hoje"
-          value={saidaHoje}
-          subtitle="unidades p/ balcao"
-          icon={<ArrowDown size={20} />}
-          color="orange"
-        />
-        <KPICard
-          title="Alertas"
-          value={produtosZerados + produtosNegativos}
-          subtitle={`${produtosNegativos} negativo(s) · ${produtosZerados} zerado(s)`}
-          icon={<AlertTriangle size={20} />}
-          color="red"
-          alert={produtosNegativos > 0}
-        />
-      </div>
-
-      {/* Sorvetes Criticos */}
-      {sorvetesCriticos.length > 0 && (
-        <div className="bg-[#FCE4EC] border border-[#F8BBD0] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={18} className="text-[#E91E63]" />
-            <h3 className="text-sm font-semibold text-[#C2185B]">Sorvetes com estoque critico</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sorvetesCriticos.map(s => (
-              <span
-                key={s.produtoId}
-                className={cn(
-                  'text-xs px-3 py-1.5 rounded-full font-medium',
-                  s.saldo < 0 ? 'bg-red-100 text-red-700' : s.saldo === 0 ? 'bg-white text-gray-600' : 'bg-amber-100 text-amber-700'
-                )}
-              >
-                {s.produto}: {s.saldo}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Outros produtos criticos */}
-      {outrosCriticos.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={18} className="text-amber-600" />
-            <h3 className="text-sm font-semibold text-amber-800">Outros produtos com estoque critico</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {outrosCriticos.map(s => (
-              <span
-                key={s.produtoId}
-                className={cn(
-                  'text-xs px-3 py-1.5 rounded-full font-medium',
-                  s.saldo < 0 ? 'bg-red-100 text-red-700' : s.saldo === 0 ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'
-                )}
-              >
-                {s.produto}: {s.saldo}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Top produtos mais saem */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-800 text-sm">Top 10 - Produtos mais saem</h3>
-              <p className="text-xs text-gray-500">Total historico de saidas</p>
-            </div>
-            <TrendingUp size={18} className="text-[#E91E63]" />
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topProdutos} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="produto" tick={{ fontSize: 11 }} width={130} />
-              <Tooltip
-                contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                formatter={(value) => [`${value} un.`, 'Total saidas']}
-              />
-              <Bar dataKey="total" fill="#E91E63" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Distribuicao por produto */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-800 text-sm">Distribuicao de saidas</h3>
-              <p className="text-xs text-gray-500">Top 6 produtos por volume</p>
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Sorvetes na vitrine</span>
+            <div className="w-8 h-8 bg-[#FCE4EC] rounded-lg flex items-center justify-center">
+              <IceCream size={18} className="text-[#E91E63]" />
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={110}
-                paddingAngle={3}
-                dataKey="value"
-                label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                labelLine={{ stroke: '#999', strokeWidth: 1 }}
-              >
-                {pieData.map((_entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`${value} un.`, 'Saidas']} />
-            </PieChart>
-          </ResponsiveContainer>
+          <p className={cn('text-2xl font-bold', sorvetesAtivos >= CAPACIDADE_FILTROS ? 'text-red-600' : 'text-gray-800')}>
+            {sorvetesAtivos}<span className="text-sm font-normal text-gray-400">/{CAPACIDADE_FILTROS}</span>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">capacidade dos filtros</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Produtos com estoque</span>
+            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+              <Package size={18} className="text-blue-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-800">{comEstoque}</p>
+          <p className="text-xs text-gray-500 mt-0.5">de {allItems.length} cadastrados</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Producao / Saida hoje</span>
+            <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+              <ArrowUp size={18} className="text-green-600" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-bold text-green-600">+{producaoHoje}</p>
+            <p className="text-lg font-bold text-pink-600">-{saidaHoje}</p>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">unidades</p>
+        </div>
+
+        <div className={cn('bg-white rounded-xl border p-4', negativos > 0 ? 'border-red-200' : 'border-gray-100')}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Alertas</span>
+            <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center', negativos > 0 ? 'bg-red-50' : 'bg-gray-50')}>
+              <AlertTriangle size={18} className={negativos > 0 ? 'text-red-500' : 'text-gray-400'} />
+            </div>
+          </div>
+          <p className={cn('text-2xl font-bold', negativos > 0 ? 'text-red-600' : 'text-gray-800')}>{negativos}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{negativos > 0 ? 'produto(s) com saldo negativo' : 'tudo em ordem'}</p>
         </div>
       </div>
 
-      {/* Producao x Saida mensal */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-gray-800 text-sm">Producao vs Saida - Mensal</h3>
-            <p className="text-xs text-gray-500">Comparativo de entrada e saida por mes</p>
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={monthlyStats} margin={{ left: 0, right: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-            <Legend />
-            <Line type="monotone" dataKey="producao" stroke="#2196F3" strokeWidth={2} name="Producao" dot={{ r: 3 }} />
-            <Line type="monotone" dataKey="saida" stroke="#E91E63" strokeWidth={2} name="Saida" dot={{ r: 3 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Tabelas por categoria */}
+      <TabelaEstoque
+        titulo="Sorvetes"
+        itens={sorvetes}
+        capacidade={CAPACIDADE_FILTROS}
+        corTitulo="bg-[#FCE4EC]/50"
+        icone={<IceCream size={16} className="text-[#E91E63]" />}
+      />
 
-      {/* Saldo por produto */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-gray-800 text-sm">Saldo em Estoque</h3>
-            <p className="text-xs text-gray-500">Quantidade atual disponivel</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={catFiltro}
-              onChange={e => setCatFiltro(e.target.value as 'sorvete' | 'outros' | 'todos')}
-              className="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none"
-            >
-              <option value="sorvete">Sorvetes</option>
-              <option value="outros">Outros produtos</option>
-              <option value="todos">Todos</option>
-            </select>
-            <select
-              value={viewMode}
-              onChange={e => setViewMode(e.target.value as 'todos' | 'comEstoque')}
-              className="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none"
-            >
-              <option value="comEstoque">Com estoque</option>
-              <option value="todos">Todos</option>
-            </select>
-          </div>
-        </div>
-        <div className="max-h-[400px] overflow-y-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                <th onClick={() => toggleSort('produto')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
-                  Produto {sortCol === 'produto' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2">Codigo</th>
-                <th onClick={() => toggleSort('categoria')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
-                  Categoria {sortCol === 'categoria' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th onClick={() => toggleSort('saldo')} className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-2 cursor-pointer hover:text-gray-700">
-                  Saldo {sortCol === 'saldo' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {saldos
-                .filter(s => {
-                  if (viewMode === 'comEstoque' && s.saldo <= 0) return false
-                  if (catFiltro === 'sorvete') return s.categoria === 'sorvete'
-                  if (catFiltro === 'outros') return s.categoria !== 'sorvete'
-                  return true
-                })
-                .sort((a, b) => {
-                  const dir = sortDir === 'asc' ? 1 : -1
-                  if (sortCol === 'produto') return a.produto.localeCompare(b.produto) * dir
-                  if (sortCol === 'categoria') return (categoriaLabels[a.categoria] || '').localeCompare(categoriaLabels[b.categoria] || '') * dir
-                  return (a.saldo - b.saldo) * dir
-                })
-                .map(s => (
-                  <tr key={s.produtoId} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-2 text-sm text-gray-800">{s.produto}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{s.codigo ?? '-'}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{categoriaLabels[s.categoria] ?? s.categoria}</td>
-                    <td className="px-4 py-2 text-center">
-                      <StockBadge value={s.saldo} bold />
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {bolos.length > 0 && (
+        <TabelaEstoque
+          titulo="Bolos de Sorvete"
+          itens={bolos}
+          corTitulo="bg-purple-50"
+          icone={<Package size={16} className="text-purple-600" />}
+        />
+      )}
+
+      {acais.length > 0 && (
+        <TabelaEstoque
+          titulo="Acai"
+          itens={acais}
+          corTitulo="bg-violet-50"
+          icone={<Package size={16} className="text-violet-600" />}
+        />
+      )}
+
+      <TabelaEstoque
+        titulo="Materia-Prima / Insumos / Embalagens"
+        itens={insumos}
+        corTitulo="bg-amber-50"
+        icone={<Package size={16} className="text-amber-600" />}
+      />
+
+      {outros.length > 0 && (
+        <TabelaEstoque
+          titulo="Outros Produtos"
+          itens={outros}
+          corTitulo="bg-gray-50"
+          icone={<Package size={16} className="text-gray-600" />}
+        />
+      )}
     </div>
-  )
-}
-
-function KPICard({ title, value, subtitle, icon, color, alert }: {
-  title: string
-  value: number
-  subtitle: string
-  icon: React.ReactNode
-  color: 'pink' | 'blue' | 'orange' | 'red'
-  alert?: boolean
-}) {
-  const colors = {
-    pink: 'bg-[#FCE4EC] text-[#E91E63]',
-    blue: 'bg-blue-50 text-blue-600',
-    orange: 'bg-orange-50 text-orange-600',
-    red: 'bg-red-50 text-red-600',
-  }
-  return (
-    <div className={cn('bg-white rounded-xl border p-4', alert ? 'border-red-200' : 'border-gray-100')}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-500">{title}</span>
-        <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center', colors[color])}>
-          {icon}
-        </div>
-      </div>
-      <p className={cn('text-2xl font-bold', alert ? 'text-red-600' : 'text-gray-800')}>{value}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
-    </div>
-  )
-}
-
-function StockBadge({ value, bold }: { value: number; bold?: boolean }) {
-  if (value === 0) return <span className="text-xs text-gray-300">-</span>
-  return (
-    <span className={cn(
-      'text-xs px-2 py-0.5 rounded-full',
-      bold ? 'font-semibold' : '',
-      value < 0 ? 'bg-red-50 text-red-600' : value <= 2 ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'
-    )}>
-      {value}
-    </span>
   )
 }
