@@ -116,81 +116,103 @@ function parseFaturamentoDiario(allPageItems: TextItem[][]): FaturamentoDiario[]
   const results: FaturamentoDiario[] = []
   const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
 
+  // Column names in order and their indices
+  const columnNames = ['vale_refeicao', 'vale_alimentacao', 'pag_instantaneo', 'dinheiro', 'cartao_debito', 'cartao_credito', 'multibeneficios', 'total'] as const
+
   for (const pageItems of allPageItems) {
     const rows = groupIntoRows(pageItems)
 
+    // First: find the header row to get column X positions
+    let columnPositions: { name: string; x: number }[] = []
     for (const row of rows) {
-      // Skip header rows and TOTAL GERAL row
       const rowText = row.map(i => i.str).join(' ')
-      if (rowText.includes('TOTAL GERAL') || rowText.includes('DATA') || rowText.includes('VALE')) continue
+      if (rowText.includes('VALE') && rowText.includes('TOTAL')) {
+        // This is the header row — record X positions
+        // Map keywords to column names
+        const headerMap: [RegExp, string][] = [
+          [/VALE\s*REFEI/i, 'vale_refeicao'],
+          [/VALE\s*ALIMENT/i, 'vale_alimentacao'],
+          [/PAGAMENTO|INSTANTÂN/i, 'pag_instantaneo'],
+          [/DINHEIRO/i, 'dinheiro'],
+          [/CART.*D[ÉE]BITO/i, 'cartao_debito'],
+          [/CART.*CR[ÉE]DITO/i, 'cartao_credito'],
+          [/MULTI/i, 'multibeneficios'],
+          [/^TOTAL$/i, 'total'],
+        ]
+        for (const item of row) {
+          for (const [regex, name] of headerMap) {
+            if (regex.test(item.str)) {
+              columnPositions.push({ name, x: item.x })
+              break
+            }
+          }
+        }
+        // Sort by X position
+        columnPositions.sort((a, b) => a.x - b.x)
+        break
+      }
+    }
 
-      // Find rows that start with a date
+    // If no header found, use fallback: assign by array position
+    const usePositionMapping = columnPositions.length >= 6
+
+    for (const row of rows) {
+      const rowText = row.map(i => i.str).join(' ')
+      if (rowText.includes('TOTAL GERAL') || rowText.includes('DATA') || rowText.includes('VALE')
+        || rowText.includes('Emitido') || rowText.includes('Pag.') || rowText.includes('Período')) continue
+
       if (row.length > 0 && dateRegex.test(row[0].str)) {
         const dateStr = parseBRDate(row[0].str)
         if (!dateStr) continue
 
-        // Extract numbers from remaining cells
-        const numbers = row.slice(1).map(item => parseBRNumber(item.str))
+        const values: Record<string, number> = {
+          vale_refeicao: 0, vale_alimentacao: 0, pag_instantaneo: 0,
+          dinheiro: 0, cartao_debito: 0, cartao_credito: 0,
+          multibeneficios: 0, total: 0,
+        }
 
-        // Pad to ensure we have all 8 columns (some might be empty/missing)
-        while (numbers.length < 8) numbers.push(0)
+        const dataItems = row.slice(1) // skip the date
 
-        // The last number is always TOTAL
-        // Work backwards: total is last, then multibeneficios, cartao_credito, etc.
-        // But some rows have fewer numbers when certain payment methods have no value
-        // The PDF structure: ValeRef, ValeAlim, PagInst, Dinheiro, CartDeb, CartCred, Multi, Total
-        const total = numbers[numbers.length - 1]
+        if (usePositionMapping && columnPositions.length > 0) {
+          // Position-based: assign each number to the closest column by X
+          for (const item of dataItems) {
+            const num = parseBRNumber(item.str)
+            if (num === 0 && item.str.trim() !== '0' && item.str.trim() !== '0,00') continue
 
-        // Assign based on position count
-        let valeRefeicao = 0, valeAlimentacao = 0, pagInstantaneo = 0
-        let dinheiro = 0, cartaoDebito = 0, cartaoCredito = 0, multibeneficios = 0
-
-        if (numbers.length >= 8) {
-          valeRefeicao = numbers[0]
-          valeAlimentacao = numbers[1]
-          pagInstantaneo = numbers[2]
-          dinheiro = numbers[3]
-          cartaoDebito = numbers[4]
-          cartaoCredito = numbers[5]
-          multibeneficios = numbers[6]
+            // Find closest column header by X position
+            let bestCol = columnPositions[0].name
+            let bestDist = Math.abs(item.x - columnPositions[0].x)
+            for (const col of columnPositions) {
+              const dist = Math.abs(item.x - col.x)
+              if (dist < bestDist) {
+                bestDist = dist
+                bestCol = col.name
+              }
+            }
+            values[bestCol] = num
+          }
         } else {
-          // Fewer columns - total is last, rest are payment methods in order
-          // We use heuristic: sum of parts should equal total
-          const vals = numbers.slice(0, -1)
-          // Try to match by checking if sum matches total
-          const sum = vals.reduce((s, v) => s + v, 0)
-          if (Math.abs(sum - total) < 1) {
-            // Assign in order, padding missing ones
-            const padded = [...vals]
-            while (padded.length < 7) padded.splice(padded.length - 1, 0, 0)
-            valeRefeicao = padded[0]
-            valeAlimentacao = padded[1]
-            pagInstantaneo = padded[2]
-            dinheiro = padded[3]
-            cartaoDebito = padded[4]
-            cartaoCredito = padded[5]
-            multibeneficios = padded[6]
-          } else {
-            // Fallback: assign what we have
-            if (vals.length >= 1) pagInstantaneo = vals[0]
-            if (vals.length >= 2) dinheiro = vals[1]
-            if (vals.length >= 3) cartaoDebito = vals[2]
-            if (vals.length >= 4) cartaoCredito = vals[3]
-            if (vals.length >= 5) valeRefeicao = vals[4]
-            if (vals.length >= 6) valeAlimentacao = vals[5]
+          // Fallback: total is always last number, rest in order
+          const numbers = dataItems.map(item => parseBRNumber(item.str)).filter(n => !isNaN(n))
+          if (numbers.length > 0) {
+            values.total = numbers[numbers.length - 1]
+            const rest = numbers.slice(0, -1)
+            for (let i = 0; i < rest.length && i < columnNames.length - 1; i++) {
+              values[columnNames[i]] = rest[i]
+            }
           }
         }
 
         results.push({
           data: dateStr,
-          valeRefeicao,
-          valeAlimentacao,
-          pagInstantaneo,
-          dinheiro,
-          cartaoDebito,
-          cartaoCredito,
-          multibeneficios,
-          total,
+          valeRefeicao: values.vale_refeicao,
+          valeAlimentacao: values.vale_alimentacao,
+          pagInstantaneo: values.pag_instantaneo,
+          dinheiro: values.dinheiro,
+          cartaoDebito: values.cartao_debito,
+          cartaoCredito: values.cartao_credito,
+          multibeneficios: values.multibeneficios,
+          total: values.total,
         })
       }
     }
