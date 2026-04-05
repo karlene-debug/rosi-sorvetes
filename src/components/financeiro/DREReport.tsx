@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Conta, PlanoContas, GrupoContas } from '@/data/financeData'
 import type { Unidade } from '@/data/productTypes'
 import { formatCurrency, grupoLabels, getMesAnoAtual } from '@/data/financeData'
+import * as dbV2 from '@/lib/database_v2'
 
 interface DREReportProps {
   contas: Conta[]
@@ -28,6 +29,32 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
   const [unidadeFiltro, setUnidadeFiltro] = useState<string>('todas')
 
   const activeUnidades = unidades.filter(u => u.status === 'ativo')
+
+  // Faturamento real do Supabase
+  const [faturamento, setFaturamento] = useState<{
+    valeRefeicao: number; valeAlimentacao: number; pagInstantaneo: number
+    dinheiro: number; cartaoDebito: number; cartaoCredito: number
+    multibeneficios: number; total: number
+  } | null>(null)
+  const [faturamentoAnterior, setFaturamentoAnterior] = useState<number>(0)
+
+  const loadFaturamento = useCallback(async () => {
+    try {
+      const uid = unidadeFiltro !== 'todas' ? unidadeFiltro : undefined
+      const data = await dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro, uid)
+      setFaturamento(data)
+
+      // Mes anterior
+      const mAnt = mesFiltro === 1 ? 12 : mesFiltro - 1
+      const aAnt = mesFiltro === 1 ? anoFiltro - 1 : anoFiltro
+      const dataAnt = await dbV2.fetchFaturamentoMensal(mAnt, aAnt, uid)
+      setFaturamentoAnterior(dataAnt?.total || 0)
+    } catch {
+      // table may not exist yet
+    }
+  }, [mesFiltro, anoFiltro, unidadeFiltro])
+
+  useEffect(() => { loadFaturamento() }, [loadFaturamento])
 
   // Mapa de plano de contas por id
   const planoMap = useMemo(() => {
@@ -80,10 +107,14 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
 
   const totalDespesas = Array.from(despesasPorGrupo.values()).reduce((sum, g) => sum + g.total, 0)
 
-  // Por enquanto receita nao esta implementada (precisa integrar DataCaixa/iFood)
-  // Placeholder: usuario pode ver so as despesas
-  const receita = 0 // TODO: integrar com vendas
+  // Receita real do faturamento importado
+  const receita = faturamento?.total || 0
   const resultado = receita - totalDespesas
+
+  // Variacao receita vs mes anterior
+  const variacaoReceita = faturamentoAnterior > 0
+    ? ((receita - faturamentoAnterior) / faturamentoAnterior) * 100
+    : null
 
   // DRE comparativo: mes anterior
   const mesAnterior = mesFiltro === 1 ? 12 : mesFiltro - 1
@@ -140,11 +171,22 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <p className="text-xs text-gray-500 mb-1">Receita Bruta</p>
-          <p className="text-xl font-bold text-gray-300">
-            {receita > 0 ? formatCurrency(receita) : 'Nao integrado'}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500 mb-1">Receita Bruta</p>
+            {variacaoReceita !== null && (
+              <span className={cn(
+                'text-[10px] flex items-center gap-0.5 px-1.5 py-0.5 rounded-full',
+                variacaoReceita > 0 ? 'bg-green-50 text-green-600' : variacaoReceita < 0 ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-500'
+              )}>
+                {variacaoReceita > 0 ? <TrendingUp size={10} /> : variacaoReceita < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
+                {Math.abs(variacaoReceita).toFixed(1)}% vs mes ant.
+              </span>
+            )}
+          </div>
+          <p className={cn('text-xl font-bold', receita > 0 ? 'text-green-600' : 'text-gray-300')}>
+            {receita > 0 ? formatCurrency(receita) : 'Importar PDF'}
           </p>
-          <p className="text-[10px] text-gray-400 mt-1">Integrar DataCaixa / iFood</p>
+          {receita === 0 && <p className="text-[10px] text-gray-400 mt-1">Aba Vendas (PDF)</p>}
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center justify-between">
@@ -187,10 +229,56 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
           {/* Receita */}
           <div className="px-4 py-3 flex items-center justify-between bg-green-50/30">
             <span className="text-sm font-semibold text-gray-800">Receita Bruta</span>
-            <span className="text-sm font-bold text-gray-300">
-              {receita > 0 ? formatCurrency(receita) : 'A integrar'}
+            <span className={cn('text-sm font-bold', receita > 0 ? 'text-green-700' : 'text-gray-300')}>
+              {receita > 0 ? formatCurrency(receita) : 'Importar via Vendas (PDF)'}
             </span>
           </div>
+          {faturamento && receita > 0 && (
+            <>
+              {faturamento.cartaoCredito > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Cartao Credito</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.cartaoCredito)}</span>
+                </div>
+              )}
+              {faturamento.cartaoDebito > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Cartao Debito</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.cartaoDebito)}</span>
+                </div>
+              )}
+              {faturamento.pagInstantaneo > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Pag. Instantaneo (Pix)</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.pagInstantaneo)}</span>
+                </div>
+              )}
+              {faturamento.dinheiro > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Dinheiro</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.dinheiro)}</span>
+                </div>
+              )}
+              {faturamento.valeRefeicao > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Vale Refeicao</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.valeRefeicao)}</span>
+                </div>
+              )}
+              {faturamento.valeAlimentacao > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Vale Alimentacao</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.valeAlimentacao)}</span>
+                </div>
+              )}
+              {faturamento.multibeneficios > 0 && (
+                <div className="px-8 py-1.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Multibeneficios</span>
+                  <span className="text-xs text-gray-500">{formatCurrency(faturamento.multibeneficios)}</span>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Grupos de despesa */}
           {gruposOrdem.map(grupo => {
@@ -266,9 +354,9 @@ export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
       {/* Dica sobre receita */}
       {receita === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700">
-          <strong>Sobre a Receita:</strong> A receita de vendas sera integrada quando conectar o DataCaixa (PDV) ou iFood.
+          <strong>Sobre a Receita:</strong> Importe o PDF de Faturamento Diario do DataCaixa na aba "Vendas (PDF)"
+          para que a receita apareca aqui automaticamente.
           Por enquanto, o DRE mostra apenas as despesas agrupadas por categoria do plano de contas.
-          Voce pode usar este relatorio pra acompanhar a evolucao dos gastos mês a mês e por unidade.
         </div>
       )}
     </div>

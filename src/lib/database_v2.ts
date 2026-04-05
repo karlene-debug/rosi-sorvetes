@@ -333,6 +333,175 @@ export async function updateOrdemProducaoStatus(id: string, status: string): Pro
 }
 
 // ============================================
+// VENDAS - UPLOADS & FATURAMENTO
+// ============================================
+
+export interface VendaUpload {
+  id: string
+  tipo: 'faturamento_diario' | 'produtos_vendidos'
+  arquivoNome: string
+  periodoInicio: string
+  periodoFim: string
+  unidadeId?: string
+  totalGeral: number
+  qtdRegistros: number
+  criadoEm: string
+}
+
+export interface FaturamentoDiario {
+  id?: string
+  uploadId?: string
+  data: string
+  valeRefeicao: number
+  valeAlimentacao: number
+  pagInstantaneo: number
+  dinheiro: number
+  cartaoDebito: number
+  cartaoCredito: number
+  multibeneficios: number
+  total: number
+  unidadeId?: string
+}
+
+export interface VendaProduto {
+  id?: string
+  uploadId?: string
+  descricao: string
+  quantidade: number
+  unidadeMedida: string
+  custoTotal: number
+  valorTotal: number
+  lucro: number
+  percentual: number
+  periodoInicio?: string
+  periodoFim?: string
+  unidadeId?: string
+}
+
+export async function fetchVendaUploads(): Promise<VendaUpload[]> {
+  const { data, error } = await supabase
+    .from('vendas_uploads')
+    .select('*, unidades(nome)')
+    .order('criado_em', { ascending: false })
+  if (error) throw error
+  return (data || []).map(u => ({
+    id: u.id,
+    tipo: u.tipo,
+    arquivoNome: u.arquivo_nome,
+    periodoInicio: u.periodo_inicio,
+    periodoFim: u.periodo_fim,
+    unidadeId: u.unidade_id || undefined,
+    unidadeNome: u.unidades?.nome || undefined,
+    totalGeral: Number(u.total_geral),
+    qtdRegistros: u.qtd_registros,
+    criadoEm: u.criado_em,
+  }))
+}
+
+export async function insertVendaUpload(upload: {
+  tipo: 'faturamento_diario' | 'produtos_vendidos'
+  arquivo_nome: string
+  periodo_inicio: string
+  periodo_fim: string
+  unidade_id?: string
+  total_geral: number
+  qtd_registros: number
+}): Promise<string> {
+  const { data, error } = await supabase
+    .from('vendas_uploads')
+    .insert(upload)
+    .select('id')
+    .single()
+  if (error) throw error
+  return data.id
+}
+
+export async function deleteVendaUpload(id: string): Promise<void> {
+  const { error } = await supabase.from('vendas_uploads').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function insertFaturamentoDiario(rows: {
+  upload_id: string
+  data: string
+  vale_refeicao: number
+  vale_alimentacao: number
+  pag_instantaneo: number
+  dinheiro: number
+  cartao_debito: number
+  cartao_credito: number
+  multibeneficios: number
+  total: number
+  unidade_id?: string
+}[]): Promise<void> {
+  const { error } = await supabase.from('faturamento_diario').upsert(
+    rows,
+    { onConflict: 'data,unidade_id' }
+  )
+  if (error) throw error
+}
+
+export async function insertVendaProdutos(rows: {
+  upload_id: string
+  descricao: string
+  quantidade: number
+  unidade_medida: string
+  custo_total: number
+  valor_total: number
+  lucro: number
+  percentual: number
+  periodo_inicio?: string
+  periodo_fim?: string
+  unidade_id?: string
+}[]): Promise<void> {
+  const { error } = await supabase.from('vendas_produtos').insert(rows)
+  if (error) throw error
+}
+
+export async function fetchFaturamentoMensal(mes: number, ano: number, unidadeId?: string): Promise<{
+  valeRefeicao: number
+  valeAlimentacao: number
+  pagInstantaneo: number
+  dinheiro: number
+  cartaoDebito: number
+  cartaoCredito: number
+  multibeneficios: number
+  total: number
+} | null> {
+  let query = supabase
+    .from('vw_faturamento_mensal')
+    .select('*')
+    .eq('mes', mes)
+    .eq('ano', ano)
+
+  if (unidadeId) {
+    query = query.eq('unidade_id', unidadeId)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  if (!data || data.length === 0) return null
+
+  // Consolidar se multiplas unidades
+  const result = {
+    valeRefeicao: 0, valeAlimentacao: 0, pagInstantaneo: 0,
+    dinheiro: 0, cartaoDebito: 0, cartaoCredito: 0,
+    multibeneficios: 0, total: 0,
+  }
+  for (const row of data) {
+    result.valeRefeicao += Number(row.vale_refeicao || 0)
+    result.valeAlimentacao += Number(row.vale_alimentacao || 0)
+    result.pagInstantaneo += Number(row.pag_instantaneo || 0)
+    result.dinheiro += Number(row.dinheiro || 0)
+    result.cartaoDebito += Number(row.cartao_debito || 0)
+    result.cartaoCredito += Number(row.cartao_credito || 0)
+    result.multibeneficios += Number(row.multibeneficios || 0)
+    result.total += Number(row.total || 0)
+  }
+  return result
+}
+
+// ============================================
 // HEALTH CHECK V2
 // ============================================
 
