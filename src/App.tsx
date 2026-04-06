@@ -4,11 +4,13 @@ import { DashboardExecutivo } from '@/components/DashboardExecutivo'
 import { EstoqueSection } from '@/components/estoque/EstoqueSection'
 import { FinanceiroSection } from '@/components/financeiro/FinanceiroSection'
 import { PessoasSection } from '@/components/pessoas/PessoasSection'
+import { UnidadeManager } from '@/components/UnidadeManager'
 import { Bell, Search, IceCream, MapPin } from 'lucide-react'
 import type { Unidade } from '@/data/productTypes'
+import { supabase } from '@/lib/supabase'
 import * as dbV2 from '@/lib/database_v2'
 
-const validSections = ['dashboard', 'estoque', 'financeiro', 'pessoas']
+const validSections = ['dashboard', 'estoque', 'financeiro', 'pessoas', 'unidades']
 
 function getHashSection(): string {
   const hash = window.location.hash.replace('#', '').split('/')[0]
@@ -33,17 +35,55 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  useEffect(() => {
+  const loadUnidades = useCallback(() => {
     dbV2.fetchUnidades()
       .then(u => setUnidades(u))
       .catch(() => {})
   }, [])
+
+  useEffect(() => { loadUnidades() }, [loadUnidades])
+
+  const handleAddUnidade = async (u: Omit<Unidade, 'id' | 'criadoEm'>) => {
+    const { error } = await supabase.from('unidades').insert({
+      nome: u.nome, tipo: u.tipo, cnpj: u.cnpj || null,
+      endereco: u.endereco || null, telefone: u.telefone || null,
+      tem_fabrica_sorvete: u.temFabricaSorvete, tem_fabrica_bolo: u.temFabricaBolo,
+      status: u.status,
+    })
+    if (error) throw error
+    loadUnidades()
+  }
+
+  const handleUpdateUnidade = async (id: string, updates: Partial<Unidade>) => {
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.nome !== undefined) dbUpdates.nome = updates.nome
+    if (updates.tipo !== undefined) dbUpdates.tipo = updates.tipo
+    if (updates.cnpj !== undefined) dbUpdates.cnpj = updates.cnpj || null
+    if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco || null
+    if (updates.telefone !== undefined) dbUpdates.telefone = updates.telefone || null
+    if (updates.temFabricaSorvete !== undefined) dbUpdates.tem_fabrica_sorvete = updates.temFabricaSorvete
+    if (updates.temFabricaBolo !== undefined) dbUpdates.tem_fabrica_bolo = updates.temFabricaBolo
+    const { error } = await supabase.from('unidades').update(dbUpdates).eq('id', id)
+    if (error) throw error
+    loadUnidades()
+  }
+
+  const handleToggleUnidade = async (id: string) => {
+    const u = unidades.find(x => x.id === id)
+    if (!u) return
+    const { error } = await supabase.from('unidades').update({
+      status: u.status === 'ativo' ? 'inativo' : 'ativo',
+    }).eq('id', id)
+    if (error) throw error
+    loadUnidades()
+  }
 
   const sectionTitles: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard', subtitle: 'Visão geral do negócio' },
     estoque: { title: 'Estoque', subtitle: 'Controle de produção, saídas e saldo por produto' },
     financeiro: { title: 'Financeiro', subtitle: 'Contas a pagar, custos fixos, fornecedores e plano de contas' },
     pessoas: { title: 'Pessoas', subtitle: 'Gestão de equipe, cargos e ocorrências' },
+    unidades: { title: 'Unidades', subtitle: 'Cadastro de lojas e fábricas' },
   }
 
   const current = sectionTitles[activeSection] || sectionTitles.dashboard
@@ -109,7 +149,15 @@ function App() {
             <FinanceiroSection unidades={unidades} />
           )}
           {activeSection === 'pessoas' && (
-            <PessoasSection unidades={unidades} />
+            <PessoasSection unidades={unidades} unidadeSelecionada={unidadeSelecionada} />
+          )}
+          {activeSection === 'unidades' && (
+            <UnidadeManager
+              unidades={unidades}
+              onAdd={handleAddUnidade}
+              onUpdate={handleUpdateUnidade}
+              onToggleStatus={handleToggleUnidade}
+            />
           )}
         </div>
 

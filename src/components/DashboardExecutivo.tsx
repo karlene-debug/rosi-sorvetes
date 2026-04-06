@@ -40,7 +40,7 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
+export function DashboardExecutivo({ unidades, unidadeSelecionada }: DashboardExecutivoProps) {
   const now = new Date()
   const mesAtual = now.getMonth() + 1
   const anoAtual = now.getFullYear()
@@ -50,6 +50,8 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [despesasMensais, setDespesasMensais] = useState<{ mes: string; valor: number }[]>([])
+
+  const unidadeId = unidadeSelecionada && unidadeSelecionada !== 'todas' ? unidadeSelecionada : undefined
 
   const navegarMes = (direcao: -1 | 1) => {
     setMesFiltro(prev => {
@@ -83,6 +85,28 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
       }
 
       // Buscar TODAS as contas dos ultimos 6 meses de uma vez (1 query em vez de 6+2)
+      // Queries filtradas por unidade quando selecionada
+      let contasQuery = supabase
+        .from('contas')
+        .select('valor, situacao, mes_referencia, ano_referencia, plano_contas(nome, grupo)')
+        .neq('situacao', 'cancelado')
+        .or(mesesRange.map(mr => `and(mes_referencia.eq.${mr.m},ano_referencia.eq.${mr.a})`).join(','))
+      if (unidadeId) contasQuery = contasQuery.eq('unidade_id', unidadeId)
+
+      let pendentesQuery = supabase
+        .from('contas')
+        .select('descricao, valor, situacao, data_vencimento')
+        .in('situacao', ['pendente', 'atrasado'])
+        .order('data_vencimento')
+        .limit(6)
+      if (unidadeId) pendentesQuery = pendentesQuery.eq('unidade_id', unidadeId)
+
+      let funcQuery = supabase.from('funcionarios').select('id').eq('status', 'ativo')
+      if (unidadeId) funcQuery = funcQuery.eq('unidade_id', unidadeId)
+
+      let movsQuery = supabase.from('movimentacoes').select('tipo, quantidade').gte('data', hoje + 'T00:00:00')
+      if (unidadeId) movsQuery = movsQuery.or(`unidade_origem_id.eq.${unidadeId},unidade_destino_id.eq.${unidadeId}`)
+
       const [
         { data: contasTodas },
         { data: ultimasContas },
@@ -92,28 +116,15 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
         fatMesResult,
         fatAntResult,
       ] = await Promise.all([
-        // 1. Todas as contas dos ultimos 6 meses (cobre mes atual + anterior + grafico)
-        supabase
-          .from('contas')
-          .select('valor, situacao, mes_referencia, ano_referencia, plano_contas(nome, grupo)')
-          .neq('situacao', 'cancelado')
-          .or(mesesRange.map(mr => `and(mes_referencia.eq.${mr.m},ano_referencia.eq.${mr.a})`).join(',')),
-        // 2. Contas pendentes/atrasadas
-        supabase
-          .from('contas')
-          .select('descricao, valor, situacao, data_vencimento')
-          .in('situacao', ['pendente', 'atrasado'])
-          .order('data_vencimento')
-          .limit(6),
-        // 3. Produtos ativos (count)
+        contasQuery,
+        pendentesQuery,
+        // Produtos nao filtram por unidade (catalogo global)
         supabase.from('produtos').select('id').eq('status', 'ativo'),
-        // 4. Funcionarios ativos (count)
-        supabase.from('funcionarios').select('id').eq('status', 'ativo'),
-        // 5. Movimentacoes de hoje
-        supabase.from('movimentacoes').select('tipo, quantidade').gte('data', hoje + 'T00:00:00'),
-        // 6-7. Faturamento (receita importada)
-        dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro).catch(() => null),
-        dbV2.fetchFaturamentoMensal(mesAnterior, anoAnterior).catch(() => null),
+        funcQuery,
+        movsQuery,
+        // Faturamento (receita importada) - com filtro de unidade
+        dbV2.fetchFaturamentoMensal(mesFiltro, anoFiltro, unidadeId).catch(() => null),
+        dbV2.fetchFaturamentoMensal(mesAnterior, anoAnterior, unidadeId).catch(() => null),
       ])
 
       // Filtrar contas por mes para os diferentes usos
@@ -191,7 +202,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
     } finally {
       setLoading(false)
     }
-  }, [mesFiltro, anoFiltro])
+  }, [mesFiltro, anoFiltro, unidadeId])
 
   useEffect(() => { loadData() }, [loadData])
 
