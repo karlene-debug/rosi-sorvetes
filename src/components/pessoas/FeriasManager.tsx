@@ -146,7 +146,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
       {showSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
-          <p className="text-sm font-medium text-green-800">{editingId ? 'Ferias atualizadas!' : 'Ferias programadas!'}</p>
+          <p className="text-sm font-medium text-green-800">{editingId ? 'Férias atualizadas!' : 'Férias programadas!'}</p>
         </div>
       )}
 
@@ -172,26 +172,26 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
               <Palmtree size={20} className="text-teal-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-800">Controle de Ferias</h3>
-              <p className="text-xs text-gray-500">Programacao, vencimentos e abono pecuniario</p>
+              <h3 className="font-semibold text-gray-800">Controle de Férias</h3>
+              <p className="text-xs text-gray-500">Programação, vencimentos e abono pecuniário</p>
             </div>
           </div>
           {onProgramar && (
             <button onClick={() => { resetForm(); setShowForm(true) }}
               className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">
-              <Plus size={16} /> Programar Ferias
+              <Plus size={16} /> Programar Férias
             </button>
           )}
         </div>
 
         {/* Modal programar/editar */}
         <Modal open={showForm} onClose={() => { setShowForm(false); resetForm() }}
-          title={editingId ? 'Editar Ferias' : 'Programar Ferias'}
+          title={editingId ? 'Editar Férias' : 'Programar Férias'}
           subtitle="Defina o periodo e opcoes de abono" size="lg">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Funcionario *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Funcionário *</label>
                 <select value={form.funcionarioId} onChange={e => handleFuncChange(e.target.value)} disabled={!!editingId}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300 disabled:bg-gray-100">
                   <option value="">Selecione...</option>
@@ -231,7 +231,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Observacao</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Observação</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300" />
               </div>
@@ -254,7 +254,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
         {/* Tabela */}
         {ferias.length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">
-            Nenhuma ferias programada. Clique em "Programar Ferias" para comecar.
+            Nenhuma ferias programada. Clique em "Programar Férias" para comecar.
           </div>
         ) : (
           <div className="overflow-x-auto">

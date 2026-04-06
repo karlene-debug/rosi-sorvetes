@@ -134,34 +134,34 @@ export interface EstoquePorUnidade {
 export const categoriaLabels: Record<CategoriaProduto, string> = {
   sorvete: 'Sorvete',
   bolo: 'Bolo de Sorvete',
-  acai: 'Acai',
+  acai: 'Açaí',
   milkshake: 'Milk Shake',
-  taca: 'Taca',
+  taca: 'Taça',
   calda: 'Calda Quente',
   cobertura: 'Cobertura',
   complemento: 'Complemento',
-  descartavel: 'Descartavel',
+  descartavel: 'Descartável',
   bebida: 'Bebida',
-  insumo: 'Insumo / Materia-Prima',
+  insumo: 'Insumo / Matéria-Prima',
   embalagem: 'Embalagem',
   limpeza: 'Limpeza',
   outros: 'Outros',
 }
 
 export const tipoProducaoLabels: Record<TipoProducao, string> = {
-  primario: 'Primario (produzido do zero)',
+  primario: 'Primário (produzido do zero)',
   derivado: 'Derivado (montagem)',
-  processado: 'Processado (ex: acai)',
+  processado: 'Processado (ex: açaí)',
   revenda: 'Revenda',
   consumo_interno: 'Consumo Interno',
 }
 
 export const tipoMovimentacaoLabels: Record<TipoMovimentacao, string> = {
-  producao: 'Producao',
-  saida: 'Saida',
-  transferencia: 'Transferencia',
+  producao: 'Produção',
+  saida: 'Saída',
+  transferencia: 'Transferência',
   ajuste: 'Ajuste',
   perda: 'Perda',
-  montagem_saida: 'Saida p/ Montagem',
+  montagem_saida: 'Saída p/ Montagem',
   montagem_entrada: 'Entrada Montagem',
 }

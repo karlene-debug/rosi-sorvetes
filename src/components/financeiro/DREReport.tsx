@@ -20,7 +20,7 @@ const gruposOrdem: GrupoContas[] = [
   'impostos_financeiro',
 ]
 
-const mesesNomes = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 export function DREReport({ contas, planoContas, unidades }: DREReportProps) {
   const { mes, ano } = getMesAnoAtual()

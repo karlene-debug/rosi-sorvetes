@@ -34,7 +34,7 @@ interface DashboardData {
 
 const COLORS = ['#E91E63', '#F06292', '#9C27B0', '#2196F3', '#FF9800', '#4CAF50', '#795548']
 
-const MESES_NOMES = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+const MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -138,7 +138,7 @@ export function DashboardExecutivo({ unidades }: DashboardExecutivoProps) {
       const grupoLabels: Record<string, string> = {
         gasto_pessoal: 'Pessoal',
         custo_direto: 'Custos Diretos',
-        ocupacao: 'Ocupacao',
+        ocupacao: 'Ocupação',
         administrativo: 'Administrativo',
         impostos_financeiro: 'Impostos',
       }

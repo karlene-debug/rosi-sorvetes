@@ -40,10 +40,10 @@ function App() {
   }, [])
 
   const sectionTitles: Record<string, { title: string; subtitle: string }> = {
-    dashboard: { title: 'Dashboard', subtitle: 'Visao geral do negocio' },
-    estoque: { title: 'Estoque', subtitle: 'Controle de producao, saidas e saldo por produto' },
+    dashboard: { title: 'Dashboard', subtitle: 'Visão geral do negócio' },
+    estoque: { title: 'Estoque', subtitle: 'Controle de produção, saídas e saldo por produto' },
     financeiro: { title: 'Financeiro', subtitle: 'Contas a pagar, custos fixos, fornecedores e plano de contas' },
-    pessoas: { title: 'Pessoas', subtitle: 'Gestao de equipe, cargos e ocorrencias' },
+    pessoas: { title: 'Pessoas', subtitle: 'Gestão de equipe, cargos e ocorrências' },
   }
 
   const current = sectionTitles[activeSection] || sectionTitles.dashboard
@@ -116,7 +116,7 @@ function App() {
         {/* Footer */}
         <footer className="px-6 py-4 border-t border-gray-100 mt-6">
           <p className="text-xs text-gray-400 text-center">
-            © {new Date().getFullYear()} Rosi Sorvetes Artesanal · Plataforma de Gestao
+            © {new Date().getFullYear()} Rosi Sorvetes Artesanal · Plataforma de Gestão
           </p>
         </footer>
       </main>

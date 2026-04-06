@@ -9,10 +9,10 @@ const tipoOcorrenciaLabels: Record<string, { label: string; color: string }> = {
   falta_justificada: { label: 'Falta Justificada', color: 'bg-orange-50 text-orange-700' },
   atestado: { label: 'Atestado', color: 'bg-amber-50 text-amber-700' },
   atraso: { label: 'Atraso', color: 'bg-yellow-50 text-yellow-700' },
-  advertencia: { label: 'Advertencia', color: 'bg-red-100 text-red-800' },
-  suspensao: { label: 'Suspensao', color: 'bg-red-200 text-red-900' },
+  advertencia: { label: 'Advertência', color: 'bg-red-100 text-red-800' },
+  suspensao: { label: 'Suspensão', color: 'bg-red-200 text-red-900' },
   elogio: { label: 'Elogio', color: 'bg-green-50 text-green-700' },
-  ferias: { label: 'Ferias', color: 'bg-blue-50 text-blue-700' },
+  ferias: { label: 'Férias', color: 'bg-blue-50 text-blue-700' },
   outros: { label: 'Outros', color: 'bg-gray-100 text-gray-600' },
 }
 
@@ -49,21 +49,21 @@ function gerarPDFAdvertencia(ocorrencia: Ocorrencia, funcionario: Funcionario | 
     </style>
     </head>
     <body>
-      <h1>TERMO DE ADVERTENCIA</h1>
+      <h1>TERMO DE ADVERTÊNCIA</h1>
       <div class="header">
-        <div class="campo"><strong>Funcionario:</strong> ${nomeFuncionario}</div>
+        <div class="campo"><strong>Funcionário:</strong> ${nomeFuncionario}</div>
         ${cpf ? `<div class="campo"><strong>CPF:</strong> ${cpf}</div>` : ''}
         ${cargo ? `<div class="campo"><strong>Cargo:</strong> ${cargo}</div>` : ''}
-        <div class="campo"><strong>Data da ocorrencia:</strong> ${dataFormatada}</div>
+        <div class="campo"><strong>Data da ocorrência:</strong> ${dataFormatada}</div>
         <div class="campo"><strong>Tipo:</strong> ${tipoOcorrenciaLabels[ocorrencia.tipo]?.label || ocorrencia.tipo}</div>
       </div>
       <p>Pela presente, fica o(a) funcionario(a) acima identificado(a) <strong>ADVERTIDO(A)</strong> pela seguinte razao:</p>
       <div class="descricao">${ocorrencia.descricao || 'Conforme relatado na data acima.'}</div>
-      <p>Fica o(a) funcionario(a) ciente de que a reincidencia podera acarretar sancoes mais severas, conforme legislacao trabalhista vigente.</p>
+      <p>Fica o(a) funcionário(a) ciente de que a reincidência poderá acarretar sanções mais severas, conforme legislação trabalhista vigente.</p>
       <p style="margin-top: 20px;">Ribeirao Preto, ${hoje}</p>
       <div class="assinaturas">
         <div class="assinatura">
-          <div class="linha">Empregador / Responsavel</div>
+          <div class="linha">Empregador / Responsável</div>
         </div>
         <div class="assinatura">
           <div class="linha">${nomeFuncionario}<br/>Funcionario(a)</div>
@@ -194,7 +194,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
           <p className="text-sm font-medium text-green-800">
-            {editingId ? 'Ocorrencia atualizada!' : 'Ocorrencia registrada com sucesso!'}
+            {editingId ? 'Ocorrencia atualizada!' : 'Ocorrência registrada com sucesso!'}
           </p>
         </div>
       )}
@@ -206,7 +206,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
               <AlertCircle size={20} className="text-orange-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-800">Ocorrencias</h3>
+              <h3 className="font-semibold text-gray-800">Ocorrências</h3>
               <p className="text-xs text-gray-500">Faltas, atestados, advertencias e outros registros</p>
             </div>
           </div>
@@ -216,19 +216,19 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
             >
               <Plus size={16} />
-              Nova Ocorrencia
+              Nova Ocorrência
             </button>
           )}
         </div>
 
         {/* Form Modal */}
         <Modal open={showForm} onClose={() => { setShowForm(false); resetForm() }}
-          title={editingId ? 'Editar Ocorrencia' : 'Nova Ocorrencia'}
+          title={editingId ? 'Editar Ocorrencia' : 'Nova Ocorrência'}
           subtitle="Registre faltas, advertencias, atestados e outros" size="lg">
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Funcionario *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Funcionário *</label>
                 <select value={form.funcionarioId} onChange={e => setForm({...form, funcionarioId: e.target.value})}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300">
                   <option value="">Selecione...</option>
@@ -276,7 +276,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Descricao</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
               <textarea value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})}
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300" rows={2} placeholder="Detalhes da ocorrencia..." />
             </div>
@@ -305,7 +305,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
         {/* Tabela */}
         {ocorrencias.length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">
-            Nenhuma ocorrencia registrada. Clique em "+ Nova Ocorrencia" para comecar.
+            Nenhuma ocorrencia registrada. Clique em "+ Nova Ocorrência" para comecar.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -321,7 +321,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
                   <th onClick={() => toggleSort('tipo')} className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:text-gray-700">
                     <span className="flex items-center gap-1">Tipo <ArrowUpDown size={10} /></span>
                   </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Descricao</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Descrição</th>
                   <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Dias</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Registrado por</th>
                   <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase w-20">Acoes</th>

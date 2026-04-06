@@ -24,7 +24,7 @@ const categoriasSaida: CategoriaProduto[] = [
 ]
 
 export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSubmit }: StockExitFormProps) {
-  const [responsavel, setResponsavel] = useState('')
+  const [responsavel, setResponsável] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { id: 1, produtoId: '', quantidade: 1, unidade: 'Balde' },
   ])
@@ -95,7 +95,7 @@ export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSu
     })
 
     onSubmit(submitItems)
-    setResponsavel('')
+    setResponsável('')
     setItems([{ id: nextId, produtoId: '', quantidade: 1, unidade: 'Balde' }])
     setNextId(nextId + 1)
     setShowSuccess(true)
@@ -110,7 +110,7 @@ export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSu
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 animate-in fade-in">
           <CheckCircle size={20} className="text-green-600" />
           <div>
-            <p className="text-sm font-medium text-green-800">Saida registrada com sucesso!</p>
+            <p className="text-sm font-medium text-green-800">Saída registrada com sucesso!</p>
             <p className="text-xs text-green-600">{totalItems} item(ns) enviado(s) para o balcao</p>
           </div>
         </div>
@@ -122,20 +122,20 @@ export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSu
             <Send size={20} className="text-[#E91E63]" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800">Saida para Balcao</h3>
+            <h3 className="font-semibold text-gray-800">Saída para Balcão</h3>
             <p className="text-xs text-gray-500">Registre os produtos levados do estoque para o balcao</p>
           </div>
         </div>
 
-        {/* Responsavel */}
+        {/* Responsável */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Responsável *</label>
           <div className="relative">
             <input
               type="text"
               list="colaboradores-saida"
               value={responsavel}
-              onChange={e => setResponsavel(e.target.value)}
+              onChange={e => setResponsável(e.target.value)}
               className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]"
               placeholder="Digite ou selecione o nome..."
             />
@@ -249,7 +249,7 @@ export function StockExitForm({ produtos, colaboradores, estoqueAtual = [], onSu
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={16} />
-              Registrar Saida
+              Registrar Saída
             </button>
             {!isValid && (
               <p className="text-[10px] text-amber-500">

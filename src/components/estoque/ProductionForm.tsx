@@ -22,7 +22,7 @@ const categoriasProducao: CategoriaProduto[] = [
 ]
 
 export function ProductionForm({ produtos, colaboradores, onSubmit }: ProductionFormProps) {
-  const [responsavel, setResponsavel] = useState('')
+  const [responsavel, setResponsável] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { id: 1, produtoId: '', quantidade: 1, unidade: 'Balde' },
   ])
@@ -81,7 +81,7 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
     })
 
     onSubmit(submitItems)
-    setResponsavel('')
+    setResponsável('')
     setItems([{ id: nextId, produtoId: '', quantidade: 1, unidade: 'Balde' }])
     setNextId(nextId + 1)
     setShowSuccess(true)
@@ -96,7 +96,7 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
           <div>
-            <p className="text-sm font-medium text-green-800">Producao registrada com sucesso!</p>
+            <p className="text-sm font-medium text-green-800">Produção registrada com sucesso!</p>
             <p className="text-xs text-green-600">{totalItems} item(ns) adicionado(s) ao estoque</p>
           </div>
         </div>
@@ -108,20 +108,20 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
             <Factory size={20} className="text-blue-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800">Producao Diaria</h3>
+            <h3 className="font-semibold text-gray-800">Produção Diária</h3>
             <p className="text-xs text-gray-500">Registre os produtos produzidos hoje</p>
           </div>
         </div>
 
-        {/* Responsavel */}
+        {/* Responsável */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Responsavel *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Responsável *</label>
           <div className="relative">
             <input
               type="text"
               list="colaboradores-producao"
               value={responsavel}
-              onChange={e => setResponsavel(e.target.value)}
+              onChange={e => setResponsável(e.target.value)}
               className="w-full sm:w-64 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300"
               placeholder="Digite ou selecione o nome..."
             />
@@ -223,7 +223,7 @@ export function ProductionForm({ produtos, colaboradores, onSubmit }: Production
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Factory size={16} />
-              Registrar Producao
+              Registrar Produção
             </button>
             {!isValid && (
               <p className="text-[10px] text-amber-500">
