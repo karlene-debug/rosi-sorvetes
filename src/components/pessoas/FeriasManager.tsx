@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Palmtree, Plus, CheckCircle, Calendar, X } from 'lucide-react'
+import { Palmtree, Plus, CheckCircle, ArrowUpDown, Pencil, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Ferias, Funcionario } from './PessoasSection'
+import { Modal } from '@/components/Modal'
 
 interface FeriasManagerProps {
   ferias: Ferias[]
@@ -9,6 +10,7 @@ interface FeriasManagerProps {
   onProgramar?: (f: { funcionarioId: string; periodoAquisitivoInicio: string; periodoAquisitivoFim: string; dataLimite: string; dataInicio: string; dataFim: string; dias: number; venderDias: number; observacao?: string }) => Promise<void>
   onConfirmar?: (id: string) => Promise<void>
   onConcluir?: (id: string) => Promise<void>
+  onEditar?: (id: string, f: { dataInicio: string; dataFim: string; dias: number; venderDias: number; observacao?: string }) => Promise<void>
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -19,53 +21,44 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   vencida: { label: 'Vencida', color: 'bg-red-50 text-red-700' },
 }
 
-const alertaColors: Record<string, string> = {
-  vencida: 'border-red-200 bg-red-50/30',
-  urgente: 'border-orange-200 bg-orange-50/30',
-  atencao: 'border-amber-200 bg-amber-50/30',
-  ok: 'border-gray-100',
-}
+type SortCol = 'funcionario' | 'status' | 'limite' | 'inicio'
 
-export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, onConcluir }: FeriasManagerProps) {
+export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, onConcluir, onEditar }: FeriasManagerProps) {
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [sortCol, setSortCol] = useState<SortCol>('limite')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [form, setForm] = useState({
-    funcionarioId: '',
-    periodoAquisitivoInicio: '',
-    periodoAquisitivoFim: '',
-    dataInicio: '',
-    dataFim: '',
-    dias: '30',
-    venderDias: '0',
-    observacao: '',
+    funcionarioId: '', periodoAquisitivoInicio: '', periodoAquisitivoFim: '',
+    dataInicio: '', dataFim: '', dias: '30', venderDias: '0', observacao: '',
   })
 
   const ativos = funcionarios.filter(f => f.status === 'ativo')
+  const diasReais = Math.max(0, parseInt(form.dias || '30') - parseInt(form.venderDias || '0'))
 
-  // Auto-calcular periodo aquisitivo e data limite a partir do funcionario selecionado
+  // Funcionarios que precisam programar ferias (admitidos ha mais de 11 meses sem ferias programada)
+  const funcionariosSemFerias = ativos.filter(f => {
+    if (!f.dataAdmissao) return false
+    const admissao = new Date(f.dataAdmissao + 'T12:00:00')
+    const mesesTrabalhados = (Date.now() - admissao.getTime()) / (1000 * 60 * 60 * 24 * 30)
+    if (mesesTrabalhados < 11) return false
+    const temProgramada = ferias.some(fe => fe.funcionarioId === f.id && (fe.status === 'programada' || fe.status === 'em_andamento'))
+    return !temProgramada
+  })
+
   const handleFuncChange = (funcId: string) => {
     const func = funcionarios.find(f => f.id === funcId)
     if (func?.dataAdmissao) {
-      // Encontrar proximo periodo aquisitivo nao coberto
       const admissao = new Date(func.dataAdmissao + 'T12:00:00')
       const agora = new Date()
       let inicio = new Date(admissao)
       while (inicio < agora) {
-        const fim = new Date(inicio)
-        fim.setFullYear(fim.getFullYear() + 1)
-        fim.setDate(fim.getDate() - 1)
-        // Verificar se ja existe ferias para este periodo
+        const fim = new Date(inicio); fim.setFullYear(fim.getFullYear() + 1); fim.setDate(fim.getDate() - 1)
         const jaExiste = ferias.some(f => f.funcionarioId === funcId && f.periodoAquisitivoInicio === inicio.toISOString().split('T')[0])
         if (!jaExiste) {
-          const dataLimite = new Date(fim)
-          dataLimite.setMonth(dataLimite.getMonth() + 11)
-          setForm(prev => ({
-            ...prev,
-            funcionarioId: funcId,
-            periodoAquisitivoInicio: inicio.toISOString().split('T')[0],
-            periodoAquisitivoFim: fim.toISOString().split('T')[0],
-          }))
+          setForm(prev => ({ ...prev, funcionarioId: funcId, periodoAquisitivoInicio: inicio.toISOString().split('T')[0], periodoAquisitivoFim: fim.toISOString().split('T')[0] }))
           return
         }
         inicio.setFullYear(inicio.getFullYear() + 1)
@@ -74,65 +67,101 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
     setForm(prev => ({ ...prev, funcionarioId: funcId }))
   }
 
-  // Auto-calcular dias reais (descontando venda)
-  const diasReais = Math.max(0, parseInt(form.dias || '30') - parseInt(form.venderDias || '0'))
-
-  // Auto-calcular data fim quando data inicio muda
   const handleDataInicioChange = (dataInicio: string) => {
     if (dataInicio && diasReais > 0) {
       const inicio = new Date(dataInicio + 'T12:00:00')
-      const fim = new Date(inicio)
-      fim.setDate(fim.getDate() + diasReais - 1)
+      const fim = new Date(inicio); fim.setDate(fim.getDate() + diasReais - 1)
       setForm(prev => ({ ...prev, dataInicio, dataFim: fim.toISOString().split('T')[0] }))
     } else {
       setForm(prev => ({ ...prev, dataInicio }))
     }
   }
 
+  const resetForm = () => {
+    setForm({ funcionarioId: '', periodoAquisitivoInicio: '', periodoAquisitivoFim: '', dataInicio: '', dataFim: '', dias: '30', venderDias: '0', observacao: '' })
+    setEditingId(null)
+  }
+
+  const handleEdit = (f: Ferias) => {
+    setForm({
+      funcionarioId: f.funcionarioId,
+      periodoAquisitivoInicio: f.periodoAquisitivoInicio,
+      periodoAquisitivoFim: f.periodoAquisitivoFim,
+      dataInicio: f.dataInicio || '',
+      dataFim: f.dataFim || '',
+      dias: String(f.dias),
+      venderDias: String(f.venderDias || 0),
+      observacao: f.observacao || '',
+    })
+    setEditingId(f.id)
+    setShowForm(true)
+  }
+
   const handleSubmit = async () => {
-    if (!form.funcionarioId || !form.periodoAquisitivoInicio || !form.dataInicio || !onProgramar) return
+    if (editingId && onEditar) {
+      setSaving(true)
+      try {
+        await onEditar(editingId, { dataInicio: form.dataInicio, dataFim: form.dataFim, dias: parseInt(form.dias) || 30, venderDias: parseInt(form.venderDias) || 0, observacao: form.observacao || undefined })
+        resetForm(); setShowForm(false); setShowSuccess(true); setTimeout(() => setShowSuccess(false), 3000)
+      } finally { setSaving(false) }
+      return
+    }
+    if (!form.funcionarioId || !form.dataInicio || !onProgramar) return
     setSaving(true)
     try {
       const periodoFim = new Date(form.periodoAquisitivoInicio + 'T12:00:00')
-      periodoFim.setFullYear(periodoFim.getFullYear() + 1)
-      periodoFim.setDate(periodoFim.getDate() - 1)
-      const dataLimite = new Date(periodoFim)
-      dataLimite.setMonth(dataLimite.getMonth() + 11)
-
+      periodoFim.setFullYear(periodoFim.getFullYear() + 1); periodoFim.setDate(periodoFim.getDate() - 1)
+      const dataLimite = new Date(periodoFim); dataLimite.setMonth(dataLimite.getMonth() + 11)
       await onProgramar({
         funcionarioId: form.funcionarioId,
         periodoAquisitivoInicio: form.periodoAquisitivoInicio,
         periodoAquisitivoFim: form.periodoAquisitivoFim || periodoFim.toISOString().split('T')[0],
         dataLimite: dataLimite.toISOString().split('T')[0],
-        dataInicio: form.dataInicio,
-        dataFim: form.dataFim,
-        dias: parseInt(form.dias) || 30,
-        venderDias: parseInt(form.venderDias) || 0,
+        dataInicio: form.dataInicio, dataFim: form.dataFim,
+        dias: parseInt(form.dias) || 30, venderDias: parseInt(form.venderDias) || 0,
         observacao: form.observacao || undefined,
       })
-      setForm({ funcionarioId: '', periodoAquisitivoInicio: '', periodoAquisitivoFim: '', dataInicio: '', dataFim: '', dias: '30', venderDias: '0', observacao: '' })
-      setShowForm(false)
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3000)
-    } catch (err) {
-      console.error('Erro ao programar ferias:', err)
-    } finally {
-      setSaving(false)
-    }
+      resetForm(); setShowForm(false); setShowSuccess(true); setTimeout(() => setShowSuccess(false), 3000)
+    } finally { setSaving(false) }
   }
 
-  // Separar ferias por estado
-  const futuras = ferias.filter(f => f.status === 'programada' || f.status === 'pendente')
-  const emAndamento = ferias.filter(f => f.status === 'em_andamento')
-  const concluidas = ferias.filter(f => f.status === 'concluida')
-  const vencidas = ferias.filter(f => f.alerta === 'vencida' && f.status !== 'concluida')
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const sorted = [...ferias].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    if (sortCol === 'funcionario') return (a.funcionarioNome || '').localeCompare(b.funcionarioNome || '') * dir
+    if (sortCol === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortCol === 'limite') return a.dataLimite.localeCompare(b.dataLimite) * dir
+    if (sortCol === 'inicio') return (a.dataInicio || '').localeCompare(b.dataInicio || '') * dir
+    return 0
+  })
+
+  const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
 
   return (
     <div className="space-y-4">
       {showSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
-          <p className="text-sm font-medium text-green-800">Ferias programadas com sucesso!</p>
+          <p className="text-sm font-medium text-green-800">{editingId ? 'Ferias atualizadas!' : 'Ferias programadas!'}</p>
+        </div>
+      )}
+
+      {/* Aviso funcionarios sem ferias programada */}
+      {funcionariosSemFerias.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={16} className="text-amber-600" />
+            <p className="text-xs font-semibold text-amber-800">Funcionarios que precisam programar ferias</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {funcionariosSemFerias.map(f => (
+              <span key={f.id} className="text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-medium">{f.nome}</span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -147,42 +176,37 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
               <p className="text-xs text-gray-500">Programacao, vencimentos e abono pecuniario</p>
             </div>
           </div>
-          {!showForm && onProgramar && (
-            <button onClick={() => setShowForm(true)}
+          {onProgramar && (
+            <button onClick={() => { resetForm(); setShowForm(true) }}
               className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">
-              <Plus size={16} />
-              Programar Ferias
+              <Plus size={16} /> Programar Ferias
             </button>
           )}
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="mb-5 p-4 bg-gray-50 rounded-lg space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Programar Ferias</p>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-            </div>
+        {/* Modal programar/editar */}
+        <Modal open={showForm} onClose={() => { setShowForm(false); resetForm() }}
+          title={editingId ? 'Editar Ferias' : 'Programar Ferias'}
+          subtitle="Defina o periodo e opcoes de abono" size="lg">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Funcionario *</label>
-                <select value={form.funcionarioId} onChange={e => handleFuncChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300">
+                <select value={form.funcionarioId} onChange={e => handleFuncChange(e.target.value)} disabled={!!editingId}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300 disabled:bg-gray-100">
                   <option value="">Selecione...</option>
-                  {ativos.map(f => (
-                    <option key={f.id} value={f.id}>{f.nome}</option>
-                  ))}
+                  {ativos.map(f => (<option key={f.id} value={f.id}>{f.nome}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Periodo aquisitivo inicio</label>
-                <input type="date" value={form.periodoAquisitivoInicio} onChange={e => setForm({...form, periodoAquisitivoInicio: e.target.value})}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300" />
+                <input type="date" value={form.periodoAquisitivoInicio} onChange={e => setForm({...form, periodoAquisitivoInicio: e.target.value})} disabled={!!editingId}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300 disabled:bg-gray-100" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Periodo aquisitivo fim</label>
-                <input type="date" value={form.periodoAquisitivoFim} onChange={e => setForm({...form, periodoAquisitivoFim: e.target.value})}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300" />
+                <input type="date" value={form.periodoAquisitivoFim} onChange={e => setForm({...form, periodoAquisitivoFim: e.target.value})} disabled={!!editingId}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300 disabled:bg-gray-100" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Data inicio ferias *</label>
@@ -191,8 +215,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Data fim ferias</label>
-                <input type="date" value={form.dataFim} readOnly
-                  className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600" />
+                <input type="date" value={form.dataFim} readOnly className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Total dias</label>
@@ -210,144 +233,109 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Observacao</label>
                 <input type="text" value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300" placeholder="Ex: Vai viajar, quer junto com feriado..." />
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-teal-300" />
               </div>
             </div>
             {parseInt(form.venderDias) > 0 && (
               <p className="text-xs text-teal-700 bg-teal-50 px-3 py-2 rounded-lg">
-                Abono pecuniario: {form.venderDias} dias vendidos. O funcionario tirara {diasReais} dias de descanso.
+                Abono pecuniario: {form.venderDias} dias vendidos. Descanso: {diasReais} dias.
               </p>
             )}
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
-              <button onClick={handleSubmit} disabled={!form.funcionarioId || !form.dataInicio || saving}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors">
-                {saving ? 'Salvando...' : 'Programar'}
+            <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+              <button onClick={() => { setShowForm(false); resetForm() }} className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
+              <button onClick={handleSubmit} disabled={(!editingId && (!form.funcionarioId || !form.dataInicio)) || saving}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50">
+                {saving ? 'Salvando...' : editingId ? 'Salvar' : 'Programar'}
               </button>
             </div>
           </div>
-        )}
+        </Modal>
 
-        {/* Alertas de vencimento */}
-        {vencidas.length > 0 && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-red-700 mb-2">Ferias vencidas ({vencidas.length})</p>
-            <div className="space-y-1">
-              {vencidas.map(f => (
-                <div key={f.id} className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-red-800">{f.funcionarioNome}</span>
-                  <span className="text-red-600">Limite: {new Date(f.dataLimite + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Em andamento */}
-        {emAndamento.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Em andamento</p>
-            {emAndamento.map(f => (
-              <FeriasCard key={f.id} ferias={f} onConcluir={onConcluir} />
-            ))}
-          </div>
-        )}
-
-        {/* Programadas / Pendentes */}
-        {futuras.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Programacoes futuras ({futuras.length})</p>
-            <div className="space-y-2">
-              {futuras.map(f => (
-                <FeriasCard key={f.id} ferias={f} onConfirmar={onConfirmar} onConcluir={onConcluir} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Concluidas */}
-        {concluidas.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Historico ({concluidas.length})</p>
-            <div className="space-y-2">
-              {concluidas.map(f => (
-                <FeriasCard key={f.id} ferias={f} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {ferias.length === 0 && !showForm && (
+        {/* Tabela */}
+        {ferias.length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">
             Nenhuma ferias programada. Clique em "Programar Ferias" para comecar.
           </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th onClick={() => toggleSort('funcionario')} className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:text-gray-700">
+                    <span className="flex items-center gap-1">Funcionario <ArrowUpDown size={10} /></span>
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Unidade</th>
+                  <th onClick={() => toggleSort('status')} className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:text-gray-700">
+                    <span className="flex items-center gap-1">Status <ArrowUpDown size={10} /></span>
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Aquisitivo</th>
+                  <th onClick={() => toggleSort('limite')} className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:text-gray-700">
+                    <span className="flex items-center gap-1">Limite <ArrowUpDown size={10} /></span>
+                  </th>
+                  <th onClick={() => toggleSort('inicio')} className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:text-gray-700">
+                    <span className="flex items-center gap-1">Periodo <ArrowUpDown size={10} /></span>
+                  </th>
+                  <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Dias</th>
+                  <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Abono</th>
+                  <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase w-28">Acoes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sorted.map(f => {
+                  const st = statusLabels[f.status] || statusLabels.pendente
+                  const isVencida = f.alerta === 'vencida'
+                  const isUrgente = f.alerta === 'urgente'
+                  return (
+                    <tr key={f.id} className={cn('hover:bg-gray-50/50',
+                      isVencida && 'bg-red-50/30', isUrgente && 'bg-amber-50/30',
+                      f.status === 'concluida' && 'opacity-60')}>
+                      <td className="px-3 py-2 font-medium text-gray-800">{f.funcionarioNome}</td>
+                      <td className="px-3 py-2 text-xs text-gray-400">{f.unidadeNome || '-'}</td>
+                      <td className="px-3 py-2">
+                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', st.color)}>{st.label}</span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{fmt(f.periodoAquisitivoInicio)} - {fmt(f.periodoAquisitivoFim)}</td>
+                      <td className={cn('px-3 py-2 text-xs', isVencida ? 'text-red-600 font-semibold' : isUrgente ? 'text-amber-600 font-medium' : 'text-gray-500')}>
+                        {fmt(f.dataLimite)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">
+                        {f.dataInicio && f.dataFim ? `${fmt(f.dataInicio)} - ${fmt(f.dataFim)}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-center text-xs text-gray-600">{f.dias}</td>
+                      <td className="px-3 py-2 text-center text-xs">
+                        {f.venderDias && f.venderDias > 0 ? (
+                          <span className="text-teal-700 font-medium">{f.venderDias}d</span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {(f.status === 'programada' || f.status === 'pendente') && onEditar && (
+                            <button onClick={() => handleEdit(f)} className="p-1 text-gray-400 hover:text-violet-600" title="Editar">
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          {f.status === 'programada' && onConfirmar && (
+                            <button onClick={async () => { await onConfirmar(f.id) }}
+                              className="text-[10px] px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">
+                              Confirmar
+                            </button>
+                          )}
+                          {f.status === 'em_andamento' && onConcluir && (
+                            <button onClick={async () => { await onConcluir(f.id) }}
+                              className="text-[10px] px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">
+                              Concluir
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function FeriasCard({ ferias: f, onConfirmar, onConcluir }: {
-  ferias: Ferias
-  onConfirmar?: (id: string) => Promise<void>
-  onConcluir?: (id: string) => Promise<void>
-}) {
-  const [loading, setLoading] = useState(false)
-  const st = statusLabels[f.status] || statusLabels.pendente
-  const alertaCor = alertaColors[f.alerta || 'ok']
-
-  const handleAction = async (action: 'confirmar' | 'concluir') => {
-    setLoading(true)
-    try {
-      if (action === 'confirmar' && onConfirmar) await onConfirmar(f.id)
-      if (action === 'concluir' && onConcluir) await onConcluir(f.id)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className={cn('p-3 rounded-lg border', alertaCor)}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-800">{f.funcionarioNome}</span>
-          {f.unidadeNome && <span className="text-xs text-gray-400">{f.unidadeNome}</span>}
-          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', st.color)}>{st.label}</span>
-          {f.venderDias && f.venderDias > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 font-medium">
-              Vendeu {f.venderDias} dias
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {f.status === 'programada' && onConfirmar && (
-            <button onClick={() => handleAction('confirmar')} disabled={loading}
-              className="text-xs px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-              {loading ? '...' : 'Confirmar saida'}
-            </button>
-          )}
-          {f.status === 'em_andamento' && onConcluir && (
-            <button onClick={() => handleAction('concluir')} disabled={loading}
-              className="text-xs px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">
-              {loading ? '...' : 'Concluir ferias'}
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <Calendar size={10} />
-          Aquisitivo: {new Date(f.periodoAquisitivoInicio + 'T12:00:00').toLocaleDateString('pt-BR')} - {new Date(f.periodoAquisitivoFim + 'T12:00:00').toLocaleDateString('pt-BR')}
-        </span>
-        <span>Limite: {new Date(f.dataLimite + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-        {f.dataInicio && f.dataFim && (
-          <span className="font-medium text-gray-700">
-            Ferias: {new Date(f.dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')} - {new Date(f.dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}
-          </span>
-        )}
-        <span>{f.dias} dias</span>
-      </div>
-      {f.observacao && <p className="text-xs text-gray-400 mt-1">{f.observacao}</p>}
     </div>
   )
 }
