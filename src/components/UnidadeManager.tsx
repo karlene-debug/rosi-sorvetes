@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, Search, Edit2, MapPin, Phone, FileText, Factory, Store, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Search, Edit2, MapPin, Phone, FileText, Factory, Store, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Unidade, TipoUnidade } from '@/data/productTypes'
 import { Modal } from './Modal'
@@ -263,11 +263,9 @@ export function UnidadeManager({ unidades, onAdd, onUpdate, onToggleStatus }: Un
       </div>
 
       {/* Modal */}
-      {showForm && (
-        <Modal title={editId ? 'Editar Unidade' : 'Nova Unidade'} onClose={resetForm}>
-          {formContent}
-        </Modal>
-      )}
+      <Modal open={showForm} title={editId ? 'Editar Unidade' : 'Nova Unidade'} onClose={resetForm}>
+        {formContent}
+      </Modal>
     </div>
   )
 }

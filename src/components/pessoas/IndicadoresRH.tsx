@@ -1,15 +1,13 @@
 import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Users, TrendingUp, TrendingDown, DollarSign, Clock, AlertTriangle, UserPlus, UserMinus, Calendar } from 'lucide-react'
+import { Users, TrendingDown, DollarSign, Clock, AlertTriangle, UserPlus, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Funcionario, Ocorrencia, Ferias } from './PessoasSection'
-import type { Unidade } from '@/data/productTypes'
 
 interface IndicadoresRHProps {
   funcionarios: Funcionario[]
   ocorrencias: Ocorrencia[]
   ferias: Ferias[]
-  unidades: Unidade[]
   unidadeSelecionada?: string
 }
 
@@ -19,7 +17,7 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidades, unidadeSelecionada }: IndicadoresRHProps) {
+export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSelecionada }: IndicadoresRHProps) {
   const dados = useMemo(() => {
     // Filtrar por unidade se selecionada
     const funcs = unidadeSelecionada && unidadeSelecionada !== 'todas'

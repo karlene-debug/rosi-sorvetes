@@ -451,7 +451,6 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           funcionarios={funcionarios}
           ocorrencias={ocorrencias}
           ferias={ferias}
-          unidades={unidades}
           unidadeSelecionada={unidadeSelecionada}
         />
       )}
@@ -468,7 +467,6 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
       {activeTab === 'folha' && (
         <FolhaPagamentoManager
           funcionarios={funcionarios}
-          unidades={unidades}
           unidadeSelecionada={unidadeSelecionada}
         />
       )}

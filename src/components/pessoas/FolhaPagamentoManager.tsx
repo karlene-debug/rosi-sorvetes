@@ -3,11 +3,9 @@ import { ChevronLeft, ChevronRight, Save, Loader2, Calculator, Info } from 'luci
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario } from './PessoasSection'
-import type { Unidade } from '@/data/productTypes'
 
 interface FolhaPagamentoManagerProps {
   funcionarios: Funcionario[]
-  unidades: Unidade[]
   unidadeSelecionada?: string
 }
 
@@ -32,7 +30,7 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-export function FolhaPagamentoManager({ funcionarios, unidades, unidadeSelecionada }: FolhaPagamentoManagerProps) {
+export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: FolhaPagamentoManagerProps) {
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth() + 1)
   const [ano, setAno] = useState(now.getFullYear())
