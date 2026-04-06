@@ -60,14 +60,14 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('Funcionario cadastrado com sucesso!')
+  const [successMsg, setSuccessMsg] = useState('Funcionário cadastrado com sucesso!')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [demitindoId, setDemitindoId] = useState<string | null>(null)
-  const [dataDemissao, setDataDemissao] = useState('')
+  const [dataDemissao, setDataDemissão] = useState('')
   const [reajusteId, setReajusteId] = useState<string | null>(null)
   const [reajusteForm, setReajusteForm] = useState({ salarioNovo: '', motivo: '', registradoPor: '' })
-  const [funcBeneficios, setFuncBeneficios] = useState<Record<string, Beneficio[]>>({})
+  const [funcBenefícios, setFuncBenefícios] = useState<Record<string, Beneficio[]>>({})
   const [funcHistorico, setFuncHistorico] = useState<Record<string, HistoricoSalarial[]>>({})
   const [form, setForm] = useState({
     nome: '',
@@ -82,7 +82,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
     jornada: '',
     observacao: '',
   })
-  const [beneficiosForm, setBeneficiosForm] = useState<BeneficioForm[]>(
+  const [beneficiosForm, setBenefíciosForm] = useState<BeneficioForm[]>(
     beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' }))
   )
 
@@ -112,8 +112,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
       }
 
       // Salvar beneficios ativos do novo funcionario
-      const ativosBeneficios = beneficiosForm.filter(b => b.ativo)
-      if (ativosBeneficios.length > 0) {
+      const ativosBenefícios = beneficiosForm.filter(b => b.ativo)
+      if (ativosBenefícios.length > 0) {
         // Pegar o ID do funcionario recem criado
         const { data: lastFunc } = await supabase
           .from('funcionarios')
@@ -124,7 +124,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
           .single()
 
         if (lastFunc) {
-          for (const b of ativosBeneficios) {
+          for (const b of ativosBenefícios) {
             await supabase.from('beneficios').insert({
               funcionario_id: lastFunc.id,
               tipo: b.tipo,
@@ -140,7 +140,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
       resetForm()
       setShowForm(false)
       setEditingId(null)
-      setSuccessMsg(editingId ? 'Funcionario atualizado com sucesso!' : 'Funcionario cadastrado com sucesso!')
+      setSuccessMsg(editingId ? 'Funcionário atualizado com sucesso!' : 'Funcionário cadastrado com sucesso!')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
     } catch (err) {
@@ -152,7 +152,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
 
   const resetForm = () => {
     setForm({ nome: '', cpf: '', telefone: '', email: '', cargoId: '', unidadeId: '', dataAdmissao: '', salario: '', tipoContrato: 'clt', jornada: '', observacao: '' })
-    setBeneficiosForm(beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' })))
+    setBenefíciosForm(beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' })))
   }
 
   const handleEdit = (f: Funcionario) => {
@@ -180,8 +180,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
     try {
       await onDemitir(demitindoId, dataDemissao)
       setDemitindoId(null)
-      setDataDemissao('')
-      setSuccessMsg('Funcionario demitido. Status alterado para inativo.')
+      setDataDemissão('')
+      setSuccessMsg('Funcionário demitido. Status alterado para inativo.')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
     } catch (err) {
@@ -234,13 +234,13 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
   }
 
   const toggleBeneficio = (tipo: string) => {
-    setBeneficiosForm(prev => prev.map(b =>
+    setBenefíciosForm(prev => prev.map(b =>
       b.tipo === tipo ? { ...b, ativo: !b.ativo } : b
     ))
   }
 
   const updateBeneficio = (tipo: string, field: keyof BeneficioForm, value: string) => {
-    setBeneficiosForm(prev => prev.map(b =>
+    setBenefíciosForm(prev => prev.map(b =>
       b.tipo === tipo ? { ...b, [field]: value } : b
     ))
   }
@@ -253,7 +253,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
     }
     setExpandedId(funcId)
     // Carregar beneficios e historico em paralelo
-    if (!funcBeneficios[funcId]) {
+    if (!funcBenefícios[funcId]) {
       try {
         const [{ data }, { data: histData }] = await Promise.all([
           supabase.from('beneficios').select('*').eq('funcionario_id', funcId),
@@ -270,7 +270,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
             registradoPor: (h.registrado_por as string) || undefined,
           })),
         }))
-        setFuncBeneficios(prev => ({
+        setFuncBenefícios(prev => ({
           ...prev,
           [funcId]: (data || []).map(b => ({
             id: b.id,
@@ -318,15 +318,15 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
             >
               <UserPlus size={16} />
-              Novo Funcionario
+              Novo Funcionário
             </button>
           )}
         </div>
 
         {/* Form Modal */}
         <Modal open={showForm} onClose={handleCancelForm}
-          title={editingId ? 'Editar Funcionario' : 'Novo Funcionario'}
-          subtitle="Preencha os dados do funcionario" size="lg">
+          title={editingId ? 'Editar Funcionário' : 'Novo Funcionário'}
+          subtitle="Preencha os dados do funcionário" size="lg">
           <div className="space-y-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Dados Pessoais</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -384,12 +384,12 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Data Admissao</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Data Admissão</label>
                 <input type="date" value={form.dataAdmissao} onChange={e => setForm({...form, dataAdmissao: e.target.value})}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Salario (R$)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Salário (R$)</label>
                 <input type="number" step="0.01" value={form.salario} onChange={e => setForm({...form, salario: e.target.value})}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" placeholder="0,00" />
               </div>
@@ -400,8 +400,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               </div>
             </div>
 
-            {/* Beneficios */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Beneficios</p>
+            {/* Benefícios */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Benefícios</p>
             <div className="space-y-2">
               {beneficiosForm.map(b => {
                 const info = beneficioTipos.find(t => t.tipo === b.tipo)!
@@ -447,7 +447,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Observacao</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Observação</label>
               <textarea value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" rows={2} />
             </div>
@@ -455,7 +455,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               <button onClick={handleCancelForm} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
               <button onClick={handleSubmit} disabled={!form.nome.trim() || saving}
                 className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
-                {saving ? 'Salvando...' : editingId ? 'Salvar Alteracoes' : 'Cadastrar'}
+                {saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Cadastrar'}
               </button>
             </div>
           </div>
@@ -464,7 +464,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
         {/* Tabela */}
         {funcionarios.length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">
-            Nenhum funcionario cadastrado. Clique em "+ Novo Funcionario" para comecar.
+            Nenhum funcionário cadastrado. Clique em "+ Novo Funcionário" para comecar.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -515,7 +515,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                           </button>
                         )}
                         {f.status === 'ativo' && onDemitir && (
-                          <button onClick={() => { setDemitindoId(f.id); setDataDemissao(new Date().toISOString().split('T')[0]) }}
+                          <button onClick={() => { setDemitindoId(f.id); setDataDemissão(new Date().toISOString().split('T')[0]) }}
                             className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Demitir">
                             <UserX size={14} />
                           </button>
@@ -537,13 +537,13 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
         {(() => {
           const f = funcionarios.find(fn => fn.id === expandedId)
           if (!f) return null
-          const bens = funcBeneficios[f.id] || []
+          const bens = funcBenefícios[f.id] || []
           const hist = funcHistorico[f.id] || []
           return (
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 {f.dataAdmissao && <div><span className="text-gray-400 text-xs">Admissao</span><br/><span className="text-gray-700">{new Date(f.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>}
-                {f.dataDemissao && <div><span className="text-gray-400 text-xs">Demissao</span><br/><span className="text-red-600">{new Date(f.dataDemissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>}
+                {f.dataDemissao && <div><span className="text-gray-400 text-xs">Demissão</span><br/><span className="text-red-600">{new Date(f.dataDemissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>}
                 {f.cpf && <div><span className="text-gray-400 text-xs">CPF</span><br/><span className="text-gray-700">{f.cpf}</span></div>}
                 {f.email && <div><span className="text-gray-400 text-xs">Email</span><br/><span className="text-gray-700">{f.email}</span></div>}
                 {f.jornada && <div><span className="text-gray-400 text-xs">Jornada</span><br/><span className="text-gray-700">{f.jornada}</span></div>}
@@ -552,7 +552,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               {f.observacao && <p className="text-sm text-gray-500"><span className="text-gray-400">Obs:</span> {f.observacao}</p>}
               {bens.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><Gift size={14} /> Beneficios</p>
+                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><Gift size={14} /> Benefícios</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {bens.filter(b => b.status === 'ativo').map(b => (
                       <div key={b.id} className="flex items-center justify-between px-3 py-2 bg-violet-50/50 rounded-lg text-sm">
@@ -568,7 +568,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               )}
               {hist.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><TrendingUp size={14} /> Historico Salarial</p>
+                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><TrendingUp size={14} /> Histórico Salarial</p>
                   <div className="space-y-1">
                     {hist.map(h => (
                       <div key={h.id} className="flex items-center justify-between px-3 py-2 bg-green-50/50 rounded-lg text-sm">
@@ -631,23 +631,23 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
       </Modal>
 
       {/* Modal Demitir */}
-      <Modal open={!!demitindoId} onClose={() => { setDemitindoId(null); setDataDemissao('') }}
-        title="Demissao"
+      <Modal open={!!demitindoId} onClose={() => { setDemitindoId(null); setDataDemissão('') }}
+        title="Demissão"
         subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="sm">
         <div className="space-y-3">
           <p className="text-sm text-gray-600">Confirme a data de demissao. O status sera alterado para inativo.</p>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Data de demissao *</label>
             <input type="date" value={dataDemissao}
-              onChange={e => setDataDemissao(e.target.value)}
+              onChange={e => setDataDemissão(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-            <button onClick={() => { setDemitindoId(null); setDataDemissao('') }}
+            <button onClick={() => { setDemitindoId(null); setDataDemissão('') }}
               className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
             <button onClick={handleDemitir} disabled={!dataDemissao || saving}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-              {saving ? 'Processando...' : 'Confirmar Demissao'}
+              {saving ? 'Processando...' : 'Confirmar Demissão'}
             </button>
           </div>
         </div>

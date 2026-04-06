@@ -71,14 +71,14 @@ export interface Conta {
 export const grupoLabels: Record<GrupoContas, string> = {
   gasto_pessoal: 'Gasto com Pessoal',
   custo_direto: 'Custos Diretos',
-  ocupacao: 'Ocupacao',
+  ocupacao: 'Ocupação',
   administrativo: 'Administrativo',
   impostos_financeiro: 'Impostos e Financeiro',
 }
 
 export const tipoCustoLabels: Record<TipoCusto, string> = {
   fixo: 'Fixo',
-  variavel: 'Variavel',
+  variavel: 'Variável',
   percentual: 'Percentual',
 }
 

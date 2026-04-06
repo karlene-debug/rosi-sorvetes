@@ -160,10 +160,10 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
       {/* Step: Upload */}
       {step === 'upload' && (
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-1">Importar Relatorio de Vendas</h3>
+          <h3 className="text-sm font-semibold text-gray-800 mb-1">Importar Relatório de Vendas</h3>
           <p className="text-xs text-gray-500 mb-4">
             Faca upload do PDF exportado do DataCaixa. O sistema detecta automaticamente se e
-            um Relatorio de Faturamento Diario ou de Produtos Vendidos.
+            um Relatorio de Faturamento Diário ou de Produtos Vendidos.
           </p>
 
           {/* Unidade selector */}
@@ -197,7 +197,7 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
               <>
                 <Upload size={32} className="text-gray-400 mb-2" />
                 <span className="text-sm text-gray-600 font-medium">Clique para selecionar o PDF</span>
-                <span className="text-xs text-gray-400 mt-1">Relatorio de Faturamento Diario ou Produtos Vendidos</span>
+                <span className="text-xs text-gray-400 mt-1">Relatorio de Faturamento Diário ou Produtos Vendidos</span>
               </>
             )}
             <input
@@ -231,7 +231,7 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
                       ? 'bg-blue-100 text-blue-700'
                       : 'bg-purple-100 text-purple-700'
                   )}>
-                    {parsedData.tipo === 'faturamento_diario' ? 'Faturamento Diario' : 'Produtos Vendidos'}
+                    {parsedData.tipo === 'faturamento_diario' ? 'Faturamento Diário' : 'Produtos Vendidos'}
                   </span>
                   <span className="text-xs text-gray-500">{fileName}</span>
                 </div>
@@ -360,7 +360,7 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
       {step === 'success' && (
         <div className="bg-white rounded-xl border border-green-200 p-6 text-center">
           <CheckCircle2 size={40} className="text-green-500 mx-auto mb-2" />
-          <h3 className="text-sm font-semibold text-gray-800 mb-1">Importacao concluida!</h3>
+          <h3 className="text-sm font-semibold text-gray-800 mb-1">Importação concluída!</h3>
           <p className="text-xs text-gray-500 mb-4">
             {parsedData?.tipo === 'faturamento_diario'
               ? `${parsedData.faturamento!.length} dias de faturamento importados.`
@@ -381,7 +381,7 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
       {/* Upload History */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-800">Historico de Importacoes</h3>
+          <h3 className="text-sm font-semibold text-gray-800">Histórico de Importações</h3>
           <span className="text-xs text-gray-500">{uploads.length} upload(s)</span>
         </div>
 
@@ -448,7 +448,7 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700">
         <strong>Relatorios aceitos (DataCaixa):</strong>
         <ul className="mt-1 ml-4 list-disc space-y-0.5">
-          <li><strong>Relatorio de Faturamento Diario</strong> — receita por dia e forma de pagamento (alimenta o DRE)</li>
+          <li><strong>Relatorio de Faturamento Diário</strong> — receita por dia e forma de pagamento (alimenta o DRE)</li>
           <li><strong>Relatorio de Produtos Vendidos</strong> — detalhamento de vendas por produto</li>
         </ul>
       </div>

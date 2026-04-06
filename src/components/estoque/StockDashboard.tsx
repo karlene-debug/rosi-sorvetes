@@ -160,7 +160,7 @@ export function StockDashboard({ produtos, movements, estoque = [] }: StockDashb
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500">Producao / Saida hoje</span>
+            <span className="text-xs text-gray-500">Produção / Saída hoje</span>
             <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center"><ArrowUp size={18} className="text-green-600" /></div>
           </div>
           <div className="flex items-baseline gap-2">
@@ -187,13 +187,13 @@ export function StockDashboard({ produtos, movements, estoque = [] }: StockDashb
           corTitulo="bg-[#FCE4EC]/50" icone={<IceCream size={14} className="text-[#E91E63]" />} compact />
         <TabelaEstoque titulo="Bolos de Sorvete" itens={bolos}
           corTitulo="bg-purple-50" icone={<Package size={14} className="text-purple-600" />} compact />
-        <TabelaEstoque titulo="Acai" itens={acais}
+        <TabelaEstoque titulo="Açaí" itens={acais}
           corTitulo="bg-violet-50" icone={<Package size={14} className="text-violet-600" />} compact />
       </div>
 
       {/* Materia-prima + Outros */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TabelaEstoque titulo="Materia-Prima / Insumos / Embalagens" itens={insumos}
+        <TabelaEstoque titulo="Matéria-Prima / Insumos / Embalagens" itens={insumos}
           corTitulo="bg-amber-50" icone={<Package size={14} className="text-amber-600" />} />
         {outros.length > 0 && (
           <TabelaEstoque titulo="Outros Produtos" itens={outros}

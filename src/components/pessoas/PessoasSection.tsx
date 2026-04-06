@@ -86,10 +86,10 @@ export interface Ferias {
 type PessoasTab = 'funcionarios' | 'cargos' | 'ocorrencias' | 'ferias'
 
 const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'funcionarios', label: 'Funcionarios', icon: <Users size={16} /> },
+  { id: 'funcionarios', label: 'Funcionários', icon: <Users size={16} /> },
   { id: 'cargos', label: 'Cargos', icon: <Briefcase size={16} /> },
-  { id: 'ocorrencias', label: 'Ocorrencias', icon: <AlertCircle size={16} /> },
-  { id: 'ferias', label: 'Ferias', icon: <Palmtree size={16} /> },
+  { id: 'ocorrencias', label: 'Ocorrências', icon: <AlertCircle size={16} /> },
+  { id: 'ferias', label: 'Férias', icon: <Palmtree size={16} /> },
 ]
 
 interface PessoasSectionProps {
@@ -417,7 +417,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
       {!connected && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex items-center gap-2 text-xs text-amber-700">
           <WifiOff size={14} />
-          Modulo de Pessoas esta sem conexao com o banco de dados. Verifique sua internet e tente novamente.
+          Módulo de Pessoas está sem conexão com o banco de dados. Verifique sua internet e tente novamente.
         </div>
       )}
 
