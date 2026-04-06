@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { AlertCircle, Plus, CheckCircle, Pencil, X, ArrowUpDown, Printer } from 'lucide-react'
+import { AlertCircle, Plus, CheckCircle, Pencil, ArrowUpDown, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Ocorrencia, Funcionario } from './PessoasSection'
+import { Modal } from '@/components/Modal'
 
 const tipoOcorrenciaLabels: Record<string, { label: string; color: string }> = {
   falta: { label: 'Falta', color: 'bg-red-50 text-red-700' },
@@ -220,17 +221,11 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
           )}
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="mb-5 p-4 bg-gray-50 rounded-lg space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">
-                {editingId ? 'Editar Ocorrencia' : 'Nova Ocorrencia'}
-              </p>
-              <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-400 hover:text-gray-600">
-                <X size={16} />
-              </button>
-            </div>
+        {/* Form Modal */}
+        <Modal open={showForm} onClose={() => { setShowForm(false); resetForm() }}
+          title={editingId ? 'Editar Ocorrencia' : 'Nova Ocorrencia'}
+          subtitle="Registre faltas, advertencias, atestados e outros" size="lg">
+          <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Funcionario *</label>
@@ -285,7 +280,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
               <textarea value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})}
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-300" rows={2} placeholder="Detalhes da ocorrencia..." />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
               <button onClick={() => { setShowForm(false); resetForm() }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
               <button onClick={handleSubmit} disabled={!form.funcionarioId || !form.data || saving}
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 transition-colors">
@@ -293,7 +288,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
               </button>
             </div>
           </div>
-        )}
+        </Modal>
 
         {/* Filtro por tipo */}
         <div className="flex items-center gap-2 mb-3">

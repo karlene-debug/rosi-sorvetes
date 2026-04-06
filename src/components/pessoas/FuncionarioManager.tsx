@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, X, DollarSign, TrendingUp } from 'lucide-react'
+import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
 import type { Cargo, Funcionario, Beneficio } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
+import { Modal } from '@/components/Modal'
 
 interface HistoricoSalarial {
   id: string
@@ -321,17 +322,11 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
           )}
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="mb-5 p-4 bg-gray-50 rounded-lg space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">
-                {editingId ? 'Editar Funcionario' : 'Novo Funcionario'}
-              </p>
-              <button onClick={handleCancelForm} className="text-gray-400 hover:text-gray-600">
-                <X size={16} />
-              </button>
-            </div>
+        {/* Form Modal */}
+        <Modal open={showForm} onClose={handleCancelForm}
+          title={editingId ? 'Editar Funcionario' : 'Novo Funcionario'}
+          subtitle="Preencha os dados do funcionario" size="lg">
+          <div className="space-y-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Dados Pessoais</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -455,7 +450,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               <textarea value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" rows={2} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
               <button onClick={handleCancelForm} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
               <button onClick={handleSubmit} disabled={!form.nome.trim() || saving}
                 className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
@@ -463,7 +458,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
               </button>
             </div>
           </div>
-        )}
+        </Modal>
 
         {/* Lista */}
         <div className="space-y-2">

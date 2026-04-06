@@ -371,6 +371,33 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
     setFerias(prev => prev.map(f => f.id === id ? { ...f, status: 'em_andamento' } : f))
   }
 
+  const handleEditarFerias = async (id: string, updates: { dataInicio: string; dataFim: string; dias: number; venderDias: number; observacao?: string }) => {
+    await supabase.from('ferias').update({
+      data_inicio: updates.dataInicio,
+      data_fim: updates.dataFim,
+      dias: updates.dias,
+      vender_dias: updates.venderDias,
+      observacao: updates.observacao || null,
+      status: 'programada',
+    }).eq('id', id)
+    // Reload
+    const { data: fData } = await supabase.from('vw_ferias_vencimentos').select('*')
+    if (fData) {
+      setFerias(fData.map((fr: Record<string, unknown>) => ({
+        id: fr.id as string, funcionarioId: fr.funcionario_id as string,
+        funcionarioNome: (fr.funcionario_nome as string) || undefined,
+        unidadeNome: (fr.unidade_nome as string) || undefined,
+        periodoAquisitivoInicio: fr.periodo_aquisitivo_inicio as string,
+        periodoAquisitivoFim: fr.periodo_aquisitivo_fim as string, dataLimite: fr.data_limite as string,
+        dataInicio: (fr.data_inicio as string) || undefined, dataFim: (fr.data_fim as string) || undefined,
+        dias: (fr.dias as number) || 30, venderDias: (fr.vender_dias as number) || 0,
+        dataConfirmacao: (fr.data_confirmacao as string) || undefined,
+        status: fr.status as string, alerta: (fr.alerta as string) || undefined,
+        observacao: (fr.observacao as string) || undefined,
+      })))
+    }
+  }
+
   const handleConcluirFerias = async (id: string) => {
     await supabase.from('ferias').update({ status: 'concluida' }).eq('id', id)
     setFerias(prev => prev.map(f => f.id === id ? { ...f, status: 'concluida' } : f))
@@ -442,6 +469,7 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
           onProgramar={handleProgramarFerias}
           onConfirmar={handleConfirmarFerias}
           onConcluir={handleConcluirFerias}
+          onEditar={handleEditarFerias}
         />
       )}
     </div>
