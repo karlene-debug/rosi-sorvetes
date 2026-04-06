@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Sidebar } from '@/components/Sidebar'
 import { DashboardExecutivo } from '@/components/DashboardExecutivo'
 import { EstoqueSection } from '@/components/estoque/EstoqueSection'
@@ -8,10 +8,30 @@ import { Bell, Search, IceCream, MapPin } from 'lucide-react'
 import type { Unidade } from '@/data/productTypes'
 import * as dbV2 from '@/lib/database_v2'
 
+const validSections = ['dashboard', 'estoque', 'financeiro', 'pessoas']
+
+function getHashSection(): string {
+  const hash = window.location.hash.replace('#', '').split('/')[0]
+  return validSections.includes(hash) ? hash : 'dashboard'
+}
+
 function App() {
-  const [activeSection, setActiveSection] = useState('dashboard')
+  const [activeSection, setActiveSection] = useState(getHashSection)
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<string>('todas')
+
+  // Sincronizar hash com navegacao
+  const handleSectionChange = useCallback((section: string) => {
+    setActiveSection(section)
+    window.location.hash = section
+  }, [])
+
+  // Ouvir mudancas no hash (botao voltar do navegador)
+  useEffect(() => {
+    const onHashChange = () => setActiveSection(getHashSection())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   useEffect(() => {
     dbV2.fetchUnidades()
@@ -30,7 +50,7 @@ function App() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+      <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
 
       {/* Main Content */}
       <main className="flex-1 lg:ml-64 min-w-0">
