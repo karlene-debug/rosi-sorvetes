@@ -70,6 +70,19 @@ export function ImportVendasManager({ unidades }: ImportVendasManagerProps) {
     setError(null)
 
     try {
+      // Verificar duplicata: mesmo tipo + periodo + unidade
+      const duplicata = uploads.find(u =>
+        u.tipo === parsedData.tipo &&
+        u.periodoInicio === parsedData.periodoInicio &&
+        u.periodoFim === parsedData.periodoFim &&
+        (u.unidadeId || '') === (unidadeId || '')
+      )
+      if (duplicata) {
+        setError(`Já existe um upload de "${parsedData.tipo === 'faturamento_diario' ? 'Faturamento Diário' : 'Produtos Vendidos'}" para o período ${new Date(parsedData.periodoInicio + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(parsedData.periodoFim + 'T12:00:00').toLocaleDateString('pt-BR')}. Exclua o anterior no histórico antes de importar novamente.`)
+        setSaving(false)
+        return
+      }
+
       const uploadId = await dbV2.insertVendaUpload({
         tipo: parsedData.tipo,
         arquivo_nome: fileName,
