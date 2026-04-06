@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { LayoutDashboard, Wallet, Menu, X, IceCream, Warehouse, Users } from 'lucide-react'
+import { LayoutDashboard, Wallet, Menu, X, IceCream, Warehouse, Users, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
   icon: React.ReactNode
   label: string
   id: string
+  group?: string
 }
 
 const navItems: NavItem[] = [
@@ -13,6 +14,7 @@ const navItems: NavItem[] = [
   { icon: <Warehouse size={20} />, label: 'Estoque', id: 'estoque' },
   { icon: <Wallet size={20} />, label: 'Financeiro', id: 'financeiro' },
   { icon: <Users size={20} />, label: 'Pessoas', id: 'pessoas' },
+  { icon: <MapPin size={20} />, label: 'Unidades', id: 'unidades', group: 'config' },
 ]
 
 interface SidebarProps {
@@ -65,7 +67,31 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">Menu Principal</p>
-          {navItems.map((item) => (
+          {navItems.filter(i => !i.group).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                onSectionChange(item.id)
+                setIsOpen(false)
+              }}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                activeSection === item.id
+                  ? 'bg-[#FCE4EC] text-[#E91E63] shadow-sm'
+                  : 'text-gray-600 hover:bg-[#FCE4EC]/50 hover:text-[#E91E63]'
+              )}
+            >
+              <span className={cn(
+                'transition-colors',
+                activeSection === item.id ? 'text-[#E91E63]' : 'text-gray-400'
+              )}>
+                {item.icon}
+              </span>
+              {item.label}
+            </button>
+          ))}
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3 mt-6">Configuracoes</p>
+          {navItems.filter(i => i.group === 'config').map((item) => (
             <button
               key={item.id}
               onClick={() => {

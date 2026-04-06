@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree } from 'lucide-react'
+import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree, BarChart3, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FuncionarioManager } from './FuncionarioManager'
 import { CargoManager } from './CargoManager'
 import { OcorrenciaManager } from './OcorrenciaManager'
 import { FeriasManager } from './FeriasManager'
+import { IndicadoresRH } from './IndicadoresRH'
+import { FolhaPagamentoManager } from './FolhaPagamentoManager'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 
@@ -83,10 +85,12 @@ export interface Ferias {
   observacao?: string
 }
 
-type PessoasTab = 'funcionarios' | 'cargos' | 'ocorrencias' | 'ferias'
+type PessoasTab = 'indicadores' | 'funcionarios' | 'folha' | 'cargos' | 'ocorrencias' | 'ferias'
 
 const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
   { id: 'funcionarios', label: 'Funcionários', icon: <Users size={16} /> },
+  { id: 'folha', label: 'Folha', icon: <Wallet size={16} /> },
   { id: 'cargos', label: 'Cargos', icon: <Briefcase size={16} /> },
   { id: 'ocorrencias', label: 'Ocorrências', icon: <AlertCircle size={16} /> },
   { id: 'ferias', label: 'Férias', icon: <Palmtree size={16} /> },
@@ -94,10 +98,11 @@ const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
 
 interface PessoasSectionProps {
   unidades: Unidade[]
+  unidadeSelecionada?: string
 }
 
-export function PessoasSection({ unidades }: PessoasSectionProps) {
-  const [activeTab, setActiveTab] = useState<PessoasTab>('funcionarios')
+export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionProps) {
+  const [activeTab, setActiveTab] = useState<PessoasTab>('indicadores')
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([])
@@ -441,6 +446,15 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
       </div>
 
       {/* Content */}
+      {activeTab === 'indicadores' && (
+        <IndicadoresRH
+          funcionarios={funcionarios}
+          ocorrencias={ocorrencias}
+          ferias={ferias}
+          unidades={unidades}
+          unidadeSelecionada={unidadeSelecionada}
+        />
+      )}
       {activeTab === 'funcionarios' && (
         <FuncionarioManager
           funcionarios={funcionarios}
@@ -449,6 +463,13 @@ export function PessoasSection({ unidades }: PessoasSectionProps) {
           onAdd={handleAddFuncionario}
           onUpdate={handleUpdateFuncionario}
           onDemitir={handleDemitirFuncionario}
+        />
+      )}
+      {activeTab === 'folha' && (
+        <FolhaPagamentoManager
+          funcionarios={funcionarios}
+          unidades={unidades}
+          unidadeSelecionada={unidadeSelecionada}
         />
       )}
       {activeTab === 'cargos' && (
