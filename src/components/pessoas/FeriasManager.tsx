@@ -316,13 +316,13 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
                           )}
                           {f.status === 'programada' && onConfirmar && (
                             <button onClick={async () => { await onConfirmar(f.id) }}
-                              className="text-[10px] px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">
+                              className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">
                               Confirmar
                             </button>
                           )}
                           {f.status === 'em_andamento' && onConcluir && (
                             <button onClick={async () => { await onConcluir(f.id) }}
-                              className="text-[10px] px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">
+                              className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">
                               Concluir
                             </button>
                           )}
