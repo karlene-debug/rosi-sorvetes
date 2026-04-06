@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, Mail, CheckCircle, Gift, ChevronDown, ChevronUp, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
+import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { Cargo, Funcionario, Beneficio } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
@@ -421,19 +422,19 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                     {b.ativo && (
                       <div className="px-3 pb-3 grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-[10px] text-gray-500 mb-0.5">Valor Empresa (R$)</label>
+                          <label className="block text-xs text-gray-500 mb-0.5">Valor Empresa (R$)</label>
                           <input type="number" step="0.01" value={b.valorEmpresa}
                             onChange={e => updateBeneficio(b.tipo, 'valorEmpresa', e.target.value)}
                             className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:border-violet-300" placeholder="0,00" />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-gray-500 mb-0.5">Desconto Colaborador (R$)</label>
+                          <label className="block text-xs text-gray-500 mb-0.5">Desconto Colaborador (R$)</label>
                           <input type="number" step="0.01" value={b.valorColaborador}
                             onChange={e => updateBeneficio(b.tipo, 'valorColaborador', e.target.value)}
                             className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:border-violet-300" placeholder="0,00" />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-gray-500 mb-0.5">% Colaborador</label>
+                          <label className="block text-xs text-gray-500 mb-0.5">% Colaborador</label>
                           <input type="number" step="0.1" value={b.percentualColaborador}
                             onChange={e => updateBeneficio(b.tipo, 'percentualColaborador', e.target.value)}
                             className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:border-violet-300" placeholder="Ex: 6" />
@@ -460,221 +461,197 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
           </div>
         </Modal>
 
-        {/* Lista */}
-        <div className="space-y-2">
-          {funcionarios.length === 0 ? (
-            <div className="text-center py-8 text-sm text-gray-400">
-              Nenhum funcionario cadastrado. Clique em "+ Novo Funcionario" para comecar.
-            </div>
-          ) : (
-            funcionarios.map(f => {
-              const isExpanded = expandedId === f.id
-              const bens = funcBeneficios[f.id] || []
-              return (
-                <div key={f.id} className={`rounded-lg border border-gray-100 transition-colors ${f.status !== 'ativo' ? 'opacity-60' : ''}`}>
-                  <button
-                    onClick={() => handleExpand(f.id)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-800">{f.nome}</span>
-                        {f.cargoNome && (
-                          <span className="text-xs bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{f.cargoNome}</span>
-                        )}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusLabels[f.status]?.color || 'bg-gray-100 text-gray-500'}`}>
-                          {statusLabels[f.status]?.label || f.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        {f.unidadeNome && <span className="text-xs text-gray-400">{f.unidadeNome}</span>}
-                        {f.telefone && <span className="text-xs text-gray-400 flex items-center gap-1"><Phone size={10} /> {f.telefone}</span>}
-                        {f.email && <span className="text-xs text-gray-400 items-center gap-1 hidden sm:flex"><Mail size={10} /> {f.email}</span>}
-                        {f.tipoContrato && <span className="text-xs text-gray-400">{tipoContratoLabels[f.tipoContrato] || f.tipoContrato}</span>}
-                        {f.salario && <span className="text-xs text-green-600 hidden sm:block">R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
-                      </div>
-                    </div>
-                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                  </button>
-
-                  {isExpanded && (
-                    <div className="px-3 pb-3 border-t border-gray-50 pt-3">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        {f.dataAdmissao && (
-                          <div><span className="text-gray-400">Admissao:</span> <span className="text-gray-700">{new Date(f.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>
-                        )}
-                        {f.dataDemissao && (
-                          <div><span className="text-gray-400">Demissao:</span> <span className="text-red-600">{new Date(f.dataDemissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>
-                        )}
-                        {f.jornada && (
-                          <div><span className="text-gray-400">Jornada:</span> <span className="text-gray-700">{f.jornada}</span></div>
-                        )}
-                        {f.cpf && (
-                          <div><span className="text-gray-400">CPF:</span> <span className="text-gray-700">{f.cpf}</span></div>
-                        )}
-                        {f.salario && (
-                          <div><span className="text-gray-400">Salario:</span> <span className="text-gray-700">R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
-                        )}
-                      </div>
-
-                      {/* Beneficios do funcionario */}
-                      {bens.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mb-2">
-                            <Gift size={12} /> Beneficios
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {bens.filter(b => b.status === 'ativo').map(b => (
-                              <div key={b.id} className="flex items-center justify-between px-2.5 py-1.5 bg-violet-50/50 rounded text-xs">
-                                <span className="font-medium text-violet-700">{beneficioLabel(b.tipo)}</span>
-                                <div className="flex items-center gap-2 text-gray-500">
-                                  {b.valorEmpresa > 0 && <span>Empresa: R$ {b.valorEmpresa.toFixed(2)}</span>}
-                                  {b.valorColaborador > 0 && <span>Desc: R$ {b.valorColaborador.toFixed(2)}</span>}
-                                  {b.percentualColaborador && <span>({b.percentualColaborador}%)</span>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {f.observacao && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          <span className="text-gray-400">Obs:</span> {f.observacao}
-                        </div>
-                      )}
-
-                      {/* Historico salarial */}
-                      {(funcHistorico[f.id] || []).length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mb-2">
-                            <TrendingUp size={12} /> Historico Salarial
-                          </p>
-                          <div className="space-y-1">
-                            {(funcHistorico[f.id] || []).map(h => (
-                              <div key={h.id} className="flex items-center justify-between px-2.5 py-1.5 bg-green-50/50 rounded text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-500">{new Date(h.dataReajuste + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                                  <span className="text-gray-400">R$ {h.salarioAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                  <span className="text-gray-400">→</span>
-                                  <span className="font-semibold text-green-700">R$ {h.salarioNovo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                </div>
-                                {h.motivo && <span className="text-gray-400">{h.motivo}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Reajuste salarial inline */}
-                      {reajusteId === f.id && (
-                        <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                          <p className="text-xs font-semibold text-green-700 mb-2">
-                            Reajuste salarial - {f.nome}
-                            {f.salario && <span className="font-normal text-gray-500 ml-2">(atual: R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})</span>}
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div>
-                              <label className="block text-[10px] text-green-600 mb-0.5">Novo salario (R$) *</label>
-                              <input type="number" step="0.01" value={reajusteForm.salarioNovo}
-                                onChange={e => setReajusteForm({ ...reajusteForm, salarioNovo: e.target.value })}
-                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400" placeholder="0,00" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-green-600 mb-0.5">Motivo</label>
-                              <input type="text" value={reajusteForm.motivo}
-                                onChange={e => setReajusteForm({ ...reajusteForm, motivo: e.target.value })}
-                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400" placeholder="Ex: Dissidio, Merito..." />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-green-600 mb-0.5">Registrado por</label>
-                              <select value={reajusteForm.registradoPor}
-                                onChange={e => setReajusteForm({ ...reajusteForm, registradoPor: e.target.value })}
-                                className="w-full px-2 py-1.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:border-green-400">
-                                <option value="">Selecione...</option>
-                                {funcionarios.filter(fn => fn.status === 'ativo').map(fn => (
-                                  <option key={fn.id} value={fn.nome}>{fn.nome}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            <button onClick={() => { setReajusteId(null); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
-                              className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-                            <button onClick={() => handleReajuste(f.id)} disabled={!reajusteForm.salarioNovo || saving}
-                              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-                              {saving ? 'Salvando...' : 'Confirmar Reajuste'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Demitir modal inline */}
-                      {demitindoId === f.id && (
-                        <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                          <p className="text-xs font-semibold text-red-700 mb-2">Confirmar demissao de {f.nome}</p>
-                          <div className="flex items-center gap-3">
-                            <div>
-                              <label className="block text-[10px] text-red-600 mb-0.5">Data de demissao *</label>
-                              <input
-                                type="date"
-                                value={dataDemissao}
-                                onChange={e => setDataDemissao(e.target.value)}
-                                className="px-2 py-1.5 bg-white border border-red-200 rounded text-xs focus:outline-none focus:border-red-400"
-                              />
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                              <button onClick={() => { setDemitindoId(null); setDataDemissao('') }}
-                                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">
-                                Cancelar
-                              </button>
-                              <button onClick={handleDemitir} disabled={!dataDemissao || saving}
-                                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                                {saving ? 'Processando...' : 'Confirmar Demissao'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action buttons */}
-                      {demitindoId !== f.id && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
-                          <button
-                            onClick={() => handleEdit(f)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
-                          >
-                            <Pencil size={12} />
-                            Editar
+        {/* Tabela */}
+        {funcionarios.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-400">
+            Nenhum funcionario cadastrado. Clique em "+ Novo Funcionario" para comecar.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Nome</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cargo</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Unidade</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Contrato</th>
+                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Salario</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Acoes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {funcionarios.map(f => (
+                  <tr key={f.id} className={cn('hover:bg-gray-50/50', f.status !== 'ativo' && 'opacity-60')}>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-sm text-gray-800">{f.nome}</div>
+                      {f.telefone && <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><Phone size={10} />{f.telefone}</div>}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-gray-600">{f.cargoNome || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-gray-600">{f.unidadeNome || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-gray-600">{tipoContratoLabels[f.tipoContrato || ''] || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-right text-green-700 font-medium">
+                      {f.salario ? `R$ ${f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusLabels[f.status]?.color || 'bg-gray-100 text-gray-500')}>
+                        {statusLabels[f.status]?.label || f.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => { handleExpand(f.id) }}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Detalhes">
+                          <ChevronDown size={14} />
+                        </button>
+                        <button onClick={() => handleEdit(f)}
+                          className="p-1.5 text-gray-400 hover:text-violet-600 transition-colors" title="Editar">
+                          <Pencil size={14} />
+                        </button>
+                        {f.status === 'ativo' && (
+                          <button onClick={() => { setReajusteId(f.id); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
+                            className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" title="Reajuste salarial">
+                            <DollarSign size={14} />
                           </button>
-                          {f.status === 'ativo' && (
-                            <button
-                              onClick={() => { setReajusteId(f.id); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                            >
-                              <DollarSign size={12} />
-                              Reajuste
-                            </button>
-                          )}
-                          {f.status === 'ativo' && onDemitir && (
-                            <button
-                              onClick={() => { setDemitindoId(f.id); setDataDemissao(new Date().toISOString().split('T')[0]) }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                            >
-                              <UserX size={12} />
-                              Demitir
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })
-          )}
-        </div>
+                        )}
+                        {f.status === 'ativo' && onDemitir && (
+                          <button onClick={() => { setDemitindoId(f.id); setDataDemissao(new Date().toISOString().split('T')[0]) }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Demitir">
+                            <UserX size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {/* Modal Detalhes */}
+      <Modal open={!!expandedId} onClose={() => setExpandedId(null)}
+        title={funcionarios.find(f => f.id === expandedId)?.nome || 'Funcionario'}
+        subtitle="Detalhes, beneficios e historico salarial" size="lg">
+        {(() => {
+          const f = funcionarios.find(fn => fn.id === expandedId)
+          if (!f) return null
+          const bens = funcBeneficios[f.id] || []
+          const hist = funcHistorico[f.id] || []
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                {f.dataAdmissao && <div><span className="text-gray-400 text-xs">Admissao</span><br/><span className="text-gray-700">{new Date(f.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>}
+                {f.dataDemissao && <div><span className="text-gray-400 text-xs">Demissao</span><br/><span className="text-red-600">{new Date(f.dataDemissao + 'T12:00:00').toLocaleDateString('pt-BR')}</span></div>}
+                {f.cpf && <div><span className="text-gray-400 text-xs">CPF</span><br/><span className="text-gray-700">{f.cpf}</span></div>}
+                {f.email && <div><span className="text-gray-400 text-xs">Email</span><br/><span className="text-gray-700">{f.email}</span></div>}
+                {f.jornada && <div><span className="text-gray-400 text-xs">Jornada</span><br/><span className="text-gray-700">{f.jornada}</span></div>}
+                {f.salario && <div><span className="text-gray-400 text-xs">Salario</span><br/><span className="text-green-700 font-semibold">R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
+              </div>
+              {f.observacao && <p className="text-sm text-gray-500"><span className="text-gray-400">Obs:</span> {f.observacao}</p>}
+              {bens.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><Gift size={14} /> Beneficios</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {bens.filter(b => b.status === 'ativo').map(b => (
+                      <div key={b.id} className="flex items-center justify-between px-3 py-2 bg-violet-50/50 rounded-lg text-sm">
+                        <span className="font-medium text-violet-700">{beneficioLabel(b.tipo)}</span>
+                        <div className="flex items-center gap-2 text-gray-500 text-xs">
+                          {b.valorEmpresa > 0 && <span>Empresa: R$ {b.valorEmpresa.toFixed(2)}</span>}
+                          {b.valorColaborador > 0 && <span>Desc: R$ {b.valorColaborador.toFixed(2)}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {hist.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><TrendingUp size={14} /> Historico Salarial</p>
+                  <div className="space-y-1">
+                    {hist.map(h => (
+                      <div key={h.id} className="flex items-center justify-between px-3 py-2 bg-green-50/50 rounded-lg text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-500">{new Date(h.dataReajuste + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                          <span className="text-gray-400">R$ {h.salarioAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-gray-400">→</span>
+                          <span className="font-semibold text-green-700">R$ {h.salarioNovo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {h.motivo && <span className="text-gray-400 text-xs">{h.motivo}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* Modal Reajuste */}
+      <Modal open={!!reajusteId} onClose={() => { setReajusteId(null); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
+        title="Reajuste Salarial"
+        subtitle={(() => { const f = funcionarios.find(fn => fn.id === reajusteId); return f ? `${f.nome} — atual: R$ ${(f.salario || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '' })()} size="md">
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Novo salario (R$) *</label>
+              <input type="number" step="0.01" value={reajusteForm.salarioNovo}
+                onChange={e => setReajusteForm({ ...reajusteForm, salarioNovo: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-green-400" placeholder="0,00" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Motivo</label>
+              <input type="text" value={reajusteForm.motivo}
+                onChange={e => setReajusteForm({ ...reajusteForm, motivo: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-green-400" placeholder="Ex: Dissidio, Merito..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Registrado por</label>
+              <select value={reajusteForm.registradoPor}
+                onChange={e => setReajusteForm({ ...reajusteForm, registradoPor: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-green-400">
+                <option value="">Selecione...</option>
+                {funcionarios.filter(fn => fn.status === 'ativo').map(fn => (
+                  <option key={fn.id} value={fn.nome}>{fn.nome}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+            <button onClick={() => { setReajusteId(null); setReajusteForm({ salarioNovo: '', motivo: '', registradoPor: '' }) }}
+              className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
+            <button onClick={() => reajusteId && handleReajuste(reajusteId)} disabled={!reajusteForm.salarioNovo || saving}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+              {saving ? 'Salvando...' : 'Confirmar Reajuste'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Demitir */}
+      <Modal open={!!demitindoId} onClose={() => { setDemitindoId(null); setDataDemissao('') }}
+        title="Demissao"
+        subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="sm">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">Confirme a data de demissao. O status sera alterado para inativo.</p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Data de demissao *</label>
+            <input type="date" value={dataDemissao}
+              onChange={e => setDataDemissao(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+            <button onClick={() => { setDemitindoId(null); setDataDemissao('') }}
+              className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
+            <button onClick={handleDemitir} disabled={!dataDemissao || saving}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+              {saving ? 'Processando...' : 'Confirmar Demissao'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

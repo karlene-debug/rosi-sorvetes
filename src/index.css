@@ -13,7 +13,22 @@
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
   background-color: #f9fafb;
+}
+
+/* Tabelas com fonte legivel */
+table {
+  font-size: 14px;
+}
+
+table th {
+  font-size: 12px;
+}
+
+/* Inputs e selects maiores */
+input, select, textarea {
+  font-size: 14px !important;
 }
 
 ::-webkit-scrollbar {
