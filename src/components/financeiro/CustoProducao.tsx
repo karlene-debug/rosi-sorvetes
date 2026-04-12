@@ -148,7 +148,7 @@ export function CustoProducao({ produtos }: CustoProducaoProps) {
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="p-4 flex items-center gap-3 border-b border-gray-100">
           <Calculator size={18} className="text-[#E91E63]" />
-          <h3 className="text-sm font-semibold text-gray-800">Custo de Producao por Produto</h3>
+          <h3 className="text-sm font-semibold text-gray-800">Custo de Produção por Produto</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

@@ -138,7 +138,7 @@ export function PlanoContasView({ planoContas, onAdd, onToggleStatus }: PlanoCon
                 {Object.entries(condicaoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
               <textarea
-                placeholder="Descricao: o que lancar nesta conta? (Ex: Salarios dos funcionarios, incluindo 13o e ferias)"
+                placeholder="Descrição: o que lançar nesta conta? (Ex: Salarios dos funcionarios, incluindo 13o e ferias)"
                 value={descricao} onChange={e => setDescricao(e.target.value)} rows={2}
                 className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0] sm:col-span-2" />
             </div>
@@ -185,7 +185,7 @@ export function PlanoContasView({ planoContas, onAdd, onToggleStatus }: PlanoCon
                 </th>
                 <th className="text-left px-4 py-3 hidden lg:table-cell">
                   <button onClick={() => toggleSort('condicao')} className="flex items-center gap-1 font-semibold text-gray-600 hover:text-gray-900">
-                    Condicao <SortIcon field="condicao" />
+                    Condição <SortIcon field="condicao" />
                   </button>
                 </th>
                 <th className="text-center px-4 py-3">

@@ -72,7 +72,7 @@ export function CustoFixoManager({ custosFixos, planoContas, fornecedores, onAdd
         {showForm && (
           <div className="mt-4 p-4 bg-[#FCE4EC]/30 rounded-lg border border-[#F8BBD0]">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <input type="text" placeholder="Descricao *" value={descricao} onChange={e => setDescricao(e.target.value)}
+              <input type="text" placeholder="Descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
                 className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0] sm:col-span-2 lg:col-span-1" autoFocus />
               <input type="number" placeholder="Valor *" value={valor} onChange={e => setValor(e.target.value)} step="0.01" min="0"
                 className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" />
@@ -103,7 +103,7 @@ export function CustoFixoManager({ custosFixos, planoContas, fornecedores, onAdd
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3">Descricao</th>
+              <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3">Descrição</th>
               <th className="text-right text-xs font-semibold text-gray-500 uppercase px-4 py-3">Valor</th>
               <th className="text-center text-xs font-semibold text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">Dia Venc.</th>
               <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Plano</th>

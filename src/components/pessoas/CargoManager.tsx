@@ -63,7 +63,7 @@ export function CargoManager({ cargos: initialCargos, onUpdate }: CargoManagerPr
       await supabase.from('cargos').update({ descricao_atividades: editText }).eq('id', id)
       setCargos(prev => prev.map(c => c.id === id ? { ...c, descricaoAtividades: editText } : c))
       setEditingId(null)
-      setShowSuccess('Descricao atualizada!')
+      setShowSuccess('Descrição atualizada!')
       setTimeout(() => setShowSuccess(''), 3000)
     } finally { setSaving(false) }
   }
@@ -133,7 +133,7 @@ export function CargoManager({ cargos: initialCargos, onUpdate }: CargoManagerPr
                     Departamento <SortIcon field="departamento" />
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 hidden md:table-cell font-semibold text-gray-600">Descricao</th>
+                <th className="text-left px-4 py-3 hidden md:table-cell font-semibold text-gray-600">Descrição</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Acoes</th>
               </tr>
             </thead>
@@ -173,13 +173,13 @@ export function CargoManager({ cargos: initialCargos, onUpdate }: CargoManagerPr
                           className="text-xs text-gray-500 text-left max-w-sm truncate hover:text-gray-700 flex items-center gap-1">
                           {c.descricaoAtividades
                             ? <>{c.descricaoAtividades.substring(0, 80)}... {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</>
-                            : <span className="italic text-gray-300">Sem descricao</span>}
+                            : <span className="italic text-gray-300">Sem descrição</span>}
                         </button>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => { setEditingId(c.id); setEditText(c.descricaoAtividades || ''); setExpandedId(c.id) }}
-                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Editar descricao">
+                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Editar descrição">
                         <Pencil size={14} />
                       </button>
                     </td>
@@ -229,7 +229,7 @@ export function CargoManager({ cargos: initialCargos, onUpdate }: CargoManagerPr
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Descricao de Atividades</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Descrição de Atividades</label>
             <textarea value={newCargo.descricaoAtividades} onChange={e => setNewCargo({...newCargo, descricaoAtividades: e.target.value})}
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300" rows={4} placeholder="Responsabilidades e atividades..." />
           </div>
