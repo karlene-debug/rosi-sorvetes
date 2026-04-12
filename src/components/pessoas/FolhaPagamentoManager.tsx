@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { ChevronLeft, ChevronRight, ChevronDown, Loader2, Upload, CheckCircle2, AlertCircle, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario } from './PessoasSection'
@@ -11,10 +11,20 @@ interface FolhaPagamentoManagerProps {
   onReloadFuncionarios?: () => void
 }
 
+interface EventoDB {
+  codigo: string
+  descricao: string
+  tipo: 'provento' | 'desconto'
+  referencia: string | null
+  valor: number
+}
+
 interface FolhaImportada {
+  folhaId?: string
   funcionarioId: string
   nome: string
   cargoNome?: string
+  codigoFunc?: string
   salarioBruto: number
   descontos: number
   liquido: number
@@ -27,6 +37,7 @@ interface FolhaImportada {
   descontoFaltas: number
   descontoSindicato: number
   descontoOutros: number
+  eventos?: EventoDB[]
 }
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -58,6 +69,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
     resumo: FolhaResumo
   } | null>(null)
   const [msg, setMsg] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
 
   const funcsAtivos = useMemo(() => {
@@ -74,7 +86,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
     try {
       const { data } = await supabase
         .from('folha_pagamento')
-        .select('*, funcionarios(nome, cargos(nome))')
+        .select('*, funcionarios(nome, cargos(nome)), eventos_folha(codigo, descricao, tipo, referencia, valor)')
         .eq('mes', mes)
         .eq('ano', ano)
 
@@ -82,10 +94,13 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
         setFolhaItems(data.map((r: Record<string, unknown>) => {
           const func = r.funcionarios as Record<string, unknown> | null
           const cargo = func?.cargos as Record<string, string> | null
+          const eventos = (r.eventos_folha as EventoDB[] | null) || []
           return {
+            folhaId: r.id as string,
             funcionarioId: r.funcionario_id as string,
             nome: (func?.nome as string) || '-',
             cargoNome: cargo?.nome || undefined,
+            codigoFunc: (r.codigo_func as string) || undefined,
             salarioBruto: Number(r.salario_bruto),
             descontos: Number(r.descontos),
             liquido: Number(r.salario_bruto) - Number(r.descontos),
@@ -98,6 +113,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
             descontoFaltas: Number(r.desconto_faltas || 0),
             descontoSindicato: Number(r.desconto_sindicato || 0),
             descontoOutros: Number(r.desconto_outros || 0),
+            eventos,
           }
         }))
         setTemDados(true)
@@ -282,17 +298,20 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
       try {
         const { data: reloadData } = await supabase
           .from('folha_pagamento')
-          .select('*, funcionarios(nome, cargos(nome))')
+          .select('*, funcionarios(nome, cargos(nome)), eventos_folha(codigo, descricao, tipo, referencia, valor)')
           .eq('mes', resumo.mes)
           .eq('ano', resumo.ano)
         if (reloadData && reloadData.length > 0) {
           setFolhaItems(reloadData.map((r: Record<string, unknown>) => {
             const func = r.funcionarios as Record<string, unknown> | null
             const cargo = func?.cargos as Record<string, string> | null
+            const eventos = (r.eventos_folha as EventoDB[] | null) || []
             return {
+              folhaId: r.id as string,
               funcionarioId: r.funcionario_id as string,
               nome: (func?.nome as string) || '-',
               cargoNome: cargo?.nome || undefined,
+              codigoFunc: (r.codigo_func as string) || undefined,
               salarioBruto: Number(r.salario_bruto),
               descontos: Number(r.descontos),
               liquido: Number(r.salario_bruto) - Number(r.descontos),
@@ -305,6 +324,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
               descontoFaltas: Number(r.desconto_faltas || 0),
               descontoSindicato: Number(r.desconto_sindicato || 0),
               descontoOutros: Number(r.desconto_outros || 0),
+              eventos,
             }
           }))
           setTemDados(true)
@@ -571,23 +591,78 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {sortedFolha.map(item => (
-                    <tr key={item.funcionarioId} className="hover:bg-gray-50/50">
-                      <td className="px-3 py-2">
-                        <span className="font-medium text-gray-800 text-xs">{item.nome}</span>
-                        {item.cargoNome && <p className="text-[10px] text-gray-400">{item.cargoNome}</p>}
-                      </td>
-                      <td className="px-2 py-2 text-right text-xs text-gray-800">{formatCurrency(item.salarioBruto)}</td>
-                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoINSS > 0 ? formatCurrency(item.descontoINSS) : '-'}</td>
-                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoAdiantamento > 0 ? formatCurrency(item.descontoAdiantamento) : '-'}</td>
-                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoFaltas > 0 ? formatCurrency(item.descontoFaltas) : '-'}</td>
-                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoSindicato > 0 ? formatCurrency(item.descontoSindicato) : '-'}</td>
-                      <td className="px-2 py-2 text-right text-xs text-red-600 font-medium">-{formatCurrency(item.descontos)}</td>
-                      <td className="px-2 py-2 text-right text-xs text-green-700 hidden sm:table-cell">{formatCurrency(item.liquido)}</td>
-                      <td className="px-2 py-2 text-right text-xs text-gray-500 hidden md:table-cell">{formatCurrency(item.encargosEmpresa)}</td>
-                      <td className="px-2 py-2 text-right text-xs font-bold text-gray-800">{formatCurrency(item.custoTotal)}</td>
-                    </tr>
-                  ))}
+                  {sortedFolha.map(item => {
+                    const isExpanded = expandedIds.has(item.funcionarioId)
+                    const hasEventos = item.eventos && item.eventos.length > 0
+                    const toggleExpand = () => {
+                      setExpandedIds(prev => {
+                        const next = new Set(prev)
+                        if (next.has(item.funcionarioId)) next.delete(item.funcionarioId)
+                        else next.add(item.funcionarioId)
+                        return next
+                      })
+                    }
+                    return (
+                      <React.Fragment key={item.funcionarioId}>
+                        <tr className={cn('hover:bg-gray-50/50', hasEventos && 'cursor-pointer')} onClick={hasEventos ? toggleExpand : undefined}>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1.5">
+                              {hasEventos && <ChevronDown size={12} className={cn('text-gray-400 transition-transform', isExpanded && 'rotate-180')} />}
+                              <div>
+                                <span className="font-medium text-gray-800 text-xs">{item.nome}</span>
+                                {item.cargoNome && <p className="text-[10px] text-gray-400">{item.cargoNome}{item.codigoFunc ? ` (${item.codigoFunc})` : ''}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-right text-xs text-gray-800">{formatCurrency(item.salarioBruto)}</td>
+                          <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoINSS > 0 ? formatCurrency(item.descontoINSS) : '-'}</td>
+                          <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoAdiantamento > 0 ? formatCurrency(item.descontoAdiantamento) : '-'}</td>
+                          <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoFaltas > 0 ? formatCurrency(item.descontoFaltas) : '-'}</td>
+                          <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoSindicato > 0 ? formatCurrency(item.descontoSindicato) : '-'}</td>
+                          <td className="px-2 py-2 text-right text-xs text-red-600 font-medium">-{formatCurrency(item.descontos)}</td>
+                          <td className="px-2 py-2 text-right text-xs text-green-700 hidden sm:table-cell">{formatCurrency(item.liquido)}</td>
+                          <td className="px-2 py-2 text-right text-xs text-gray-500 hidden md:table-cell">{formatCurrency(item.encargosEmpresa)}</td>
+                          <td className="px-2 py-2 text-right text-xs font-bold text-gray-800">{formatCurrency(item.custoTotal)}</td>
+                        </tr>
+                        {isExpanded && hasEventos && (
+                          <tr>
+                            <td colSpan={10} className="px-3 py-2 bg-gray-50/80">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Proventos */}
+                                <div>
+                                  <p className="text-[10px] font-semibold text-green-700 mb-1 uppercase">Proventos</p>
+                                  <div className="space-y-0.5">
+                                    {item.eventos!.filter(e => e.tipo === 'provento').map((e, idx) => (
+                                      <div key={idx} className="flex items-baseline justify-between text-[11px]">
+                                        <span className="text-gray-500 mr-1">{e.codigo}</span>
+                                        <span className="text-gray-700 flex-1 truncate">{e.descricao}</span>
+                                        {e.referencia && <span className="text-gray-400 mx-1 text-[10px]">{e.referencia}</span>}
+                                        <span className="text-gray-800 font-medium ml-2 tabular-nums">{formatCurrency(e.valor)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                {/* Descontos */}
+                                <div>
+                                  <p className="text-[10px] font-semibold text-red-600 mb-1 uppercase">Descontos</p>
+                                  <div className="space-y-0.5">
+                                    {item.eventos!.filter(e => e.tipo === 'desconto').map((e, idx) => (
+                                      <div key={idx} className="flex items-baseline justify-between text-[11px]">
+                                        <span className="text-gray-500 mr-1">{e.codigo}</span>
+                                        <span className="text-gray-700 flex-1 truncate">{e.descricao}</span>
+                                        {e.referencia && <span className="text-gray-400 mx-1 text-[10px]">{e.referencia}</span>}
+                                        <span className="text-red-600 font-medium ml-2 tabular-nums">-{formatCurrency(e.valor)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50">
