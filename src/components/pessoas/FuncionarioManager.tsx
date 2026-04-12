@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
+import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Cargo, Funcionario, Beneficio, PendenciaRH } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
@@ -91,6 +91,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
   const [reajusteForm, setReajusteForm] = useState({ salarioNovo: '', motivo: '', registradoPor: '' })
   const [funcBenefícios, setFuncBenefícios] = useState<Record<string, Beneficio[]>>({})
   const [funcHistorico, setFuncHistorico] = useState<Record<string, HistoricoSalarial[]>>({})
+  const [sortField, setSortField] = useState<'nome' | 'cargo' | 'unidade' | 'admissao' | 'contrato' | 'salario' | 'status'>('nome')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [form, setForm] = useState({
     nome: '',
     cpf: '',
@@ -323,6 +325,29 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
   const ativos = funcionarios.filter(f => f.status === 'ativo')
   const beneficioLabel = (tipo: string) => beneficioTipos.find(b => b.tipo === tipo)?.label || tipo
 
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={12} className="text-gray-300" />
+    return sortDir === 'asc' ? <ArrowUp size={12} className="text-[#E91E63]" /> : <ArrowDown size={12} className="text-[#E91E63]" />
+  }
+
+  const sortedFuncionarios = [...funcionarios].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    switch (sortField) {
+      case 'nome': return a.nome.localeCompare(b.nome) * dir
+      case 'cargo': return (a.cargoNome || '').localeCompare(b.cargoNome || '') * dir
+      case 'unidade': return (a.unidadeNome || '').localeCompare(b.unidadeNome || '') * dir
+      case 'admissao': return (a.dataAdmissao || '').localeCompare(b.dataAdmissao || '') * dir
+      case 'contrato': return (a.tipoContrato || '').localeCompare(b.tipoContrato || '') * dir
+      case 'salario': return ((a.salario || 0) - (b.salario || 0)) * dir
+      case 'status': return a.status.localeCompare(b.status) * dir
+      default: return 0
+    }
+  })
+
   return (
     <div className="space-y-4">
       {showSuccess && (
@@ -543,18 +568,18 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Nome</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cargo</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Unidade</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Admissão</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Contrato</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Salário</th>
-                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('nome')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Nome <SortIcon field="nome" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('cargo')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Cargo <SortIcon field="cargo" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('unidade')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Unidade <SortIcon field="unidade" /></button></th>
+                  <th className="text-left px-3 py-2.5 hidden md:table-cell"><button onClick={() => toggleSort('admissao')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Admissão <SortIcon field="admissao" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('contrato')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Contrato <SortIcon field="contrato" /></button></th>
+                  <th className="text-right px-3 py-2.5"><button onClick={() => toggleSort('salario')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800 ml-auto">Salário <SortIcon field="salario" /></button></th>
+                  <th className="text-center px-3 py-2.5"><button onClick={() => toggleSort('status')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800 mx-auto">Status <SortIcon field="status" /></button></th>
                   <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {funcionarios.map(f => (
+                {sortedFuncionarios.map(f => (
                   <tr key={f.id} className={cn('hover:bg-gray-50/50', f.status !== 'ativo' && 'opacity-60')}>
                     <td className="px-3 py-2.5">
                       <div className="font-medium text-sm text-gray-800">{f.nome}</div>
