@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Palmtree, Plus, CheckCircle, ArrowUpDown, Pencil, AlertTriangle } from 'lucide-react'
+import { Palmtree, Plus, CheckCircle, ArrowUpDown, Pencil, AlertTriangle, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Ferias, Funcionario } from './PessoasSection'
 import { Modal } from '@/components/Modal'
@@ -11,6 +11,7 @@ interface FeriasManagerProps {
   onConfirmar?: (id: string) => Promise<void>
   onConcluir?: (id: string) => Promise<void>
   onEditar?: (id: string, f: { dataInicio: string; dataFim: string; dias: number; venderDias: number; observacao?: string }) => Promise<void>
+  onDelete?: (id: string) => Promise<void>
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -23,7 +24,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 
 type SortCol = 'funcionario' | 'status' | 'limite' | 'inicio'
 
-export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, onConcluir, onEditar }: FeriasManagerProps) {
+export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, onConcluir, onEditar, onDelete }: FeriasManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -324,6 +325,12 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
                             <button onClick={async () => { await onConcluir(f.id) }}
                               className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">
                               Concluir
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button onClick={() => { if (confirm('Excluir este registro de ferias?')) onDelete(f.id) }}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Excluir">
+                              <Trash2 size={13} />
                             </button>
                           )}
                         </div>

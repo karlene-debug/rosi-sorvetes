@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Plus, CheckCircle, Pencil, ArrowUpDown, Printer } from 'lucide-react'
+import { AlertCircle, Plus, CheckCircle, Pencil, ArrowUpDown, Printer, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Ocorrencia, Funcionario } from './PessoasSection'
 import { Modal } from '@/components/Modal'
@@ -21,6 +21,7 @@ interface OcorrenciaManagerProps {
   funcionarios: Funcionario[]
   onAdd: (o: Omit<Ocorrencia, 'id' | 'funcionarioNome'>) => Promise<void>
   onUpdate?: (id: string, o: Partial<Ocorrencia>) => Promise<void>
+  onDelete?: (id: string) => Promise<void>
 }
 
 type SortCol = 'data' | 'funcionario' | 'tipo'
@@ -83,7 +84,7 @@ function gerarPDFAdvertencia(ocorrencia: Ocorrencia, funcionario: Funcionario | 
   }
 }
 
-export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }: OcorrenciaManagerProps) {
+export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate, onDelete }: OcorrenciaManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -360,6 +361,12 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate }
                             <button onClick={() => gerarPDFAdvertencia(o, func)}
                               className="p-1 text-gray-400 hover:text-orange-600 transition-colors" title="Imprimir advertencia">
                               <Printer size={13} />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button onClick={() => { if (confirm('Excluir esta ocorrencia?')) onDelete(o.id) }}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Excluir">
+                              <Trash2 size={13} />
                             </button>
                           )}
                         </div>
