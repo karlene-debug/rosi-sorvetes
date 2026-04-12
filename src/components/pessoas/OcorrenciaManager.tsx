@@ -195,7 +195,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate, 
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
           <p className="text-sm font-medium text-green-800">
-            {editingId ? 'Ocorrencia atualizada!' : 'Ocorrência registrada com sucesso!'}
+            {editingId ? 'Ocorrência atualizada!' : 'Ocorrência registrada com sucesso!'}
           </p>
         </div>
       )}
@@ -224,7 +224,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate, 
 
         {/* Form Modal */}
         <Modal open={showForm} onClose={() => { setShowForm(false); resetForm() }}
-          title={editingId ? 'Editar Ocorrencia' : 'Nova Ocorrência'}
+          title={editingId ? 'Editar Ocorrência' : 'Nova Ocorrência'}
           subtitle="Registre faltas, advertencias, atestados e outros" size="lg">
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -364,7 +364,7 @@ export function OcorrenciaManager({ ocorrencias, funcionarios, onAdd, onUpdate, 
                             </button>
                           )}
                           {onDelete && (
-                            <button onClick={() => { if (confirm('Excluir esta ocorrencia?')) onDelete(o.id) }}
+                            <button onClick={() => { if (confirm('Excluir esta ocorrência?')) onDelete(o.id) }}
                               className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Excluir">
                               <Trash2 size={13} />
                             </button>

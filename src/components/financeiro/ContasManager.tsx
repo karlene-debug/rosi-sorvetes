@@ -217,7 +217,7 @@ export function ContasManager({ contas, planoContas, fornecedores, unidades = []
         {showForm && (
           <div className="mt-4 p-4 bg-[#FCE4EC]/30 rounded-lg border border-[#F8BBD0]">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <input type="text" placeholder="Descricao *" value={descricao} onChange={e => setDescricao(e.target.value)}
+              <input type="text" placeholder="Descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
                 className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" autoFocus />
               <input type="number" placeholder="Valor total *" value={valor} onChange={e => setValor(e.target.value)} step="0.01" min="0"
                 className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#F8BBD0]" />
@@ -286,7 +286,7 @@ export function ContasManager({ contas, planoContas, fornecedores, unidades = []
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th onClick={() => toggleSort('descricao')} className="text-left text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
-                  Descricao {sortCol === 'descricao' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Descrição {sortCol === 'descricao' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
                 <th onClick={() => toggleSort('valor')} className="text-right text-xs font-semibold text-gray-500 uppercase px-4 py-3 cursor-pointer hover:text-gray-700">
                   Valor {sortCol === 'valor' ? (sortDir === 'asc' ? '↑' : '↓') : ''}

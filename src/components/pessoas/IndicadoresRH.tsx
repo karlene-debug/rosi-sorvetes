@@ -216,7 +216,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon={<Users size={22} className="text-[#E91E63]" />}
-          label="Funcionarios ativos"
+          label="Funcionários ativos"
           value={String(dados.ativos.length)}
           sub={dados.inativos.length > 0 ? `${dados.inativos.length} desligado(s)` : undefined}
           color="pink"
@@ -251,7 +251,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center gap-2 mb-1">
             <DollarSign size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-500">Salario medio</span>
+            <span className="text-xs text-gray-500">Salário médio</span>
           </div>
           <p className="text-lg font-bold text-gray-800">{formatCurrency(dados.salarioMedio)}</p>
         </div>
@@ -269,14 +269,14 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center gap-2 mb-1">
             <Calendar size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-500">Ferias em andamento</span>
+            <span className="text-xs text-gray-500">Férias em andamento</span>
           </div>
           <p className="text-lg font-bold text-gray-800">{dados.feriasEmAndamento}</p>
         </div>
         <div className={cn('bg-white rounded-xl p-4 border', dados.feriasVencidas > 0 ? 'border-red-200' : 'border-gray-100')}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle size={14} className={dados.feriasVencidas > 0 ? 'text-red-500' : 'text-gray-400'} />
-            <span className="text-xs text-gray-500">Ferias vencidas</span>
+            <span className="text-xs text-gray-500">Férias vencidas</span>
           </div>
           <p className={cn('text-lg font-bold', dados.feriasVencidas > 0 ? 'text-red-600' : 'text-gray-800')}>
             {dados.feriasVencidas}
@@ -290,8 +290,8 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         {/* Turnover mensal */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
           <div className="mb-4">
-            <h3 className="text-base font-bold text-gray-800">Movimentacao de Pessoal</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Admissoes e desligamentos - ultimos 6 meses</p>
+            <h3 className="text-base font-bold text-gray-800">Movimentação de Pessoal</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Admissões e desligamentos - últimos 6 meses</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={dados.turnoverMensal} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -308,8 +308,8 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         {/* Distribuicao por contrato */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
           <div className="mb-4">
-            <h3 className="text-base font-bold text-gray-800">Distribuicao por Contrato</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Funcionarios ativos por tipo de vinculo</p>
+            <h3 className="text-base font-bold text-gray-800">Distribuição por Contrato</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Funcionários ativos por tipo de vínculo</p>
           </div>
           {dados.porContrato.length > 0 ? (
             <div className="flex items-center gap-6">
@@ -368,7 +368,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
 
         {/* Ocorrencias recentes */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h3 className="text-base font-bold text-gray-800 mb-4">Ocorrencias (ultimos 30 dias)</h3>
+          <h3 className="text-base font-bold text-gray-800 mb-4">Ocorrências (últimos 30 dias)</h3>
           {dados.absPorTipo.length > 0 ? (
             <div className="space-y-3">
               {dados.absPorTipo.sort((a, b) => b.valor - a.valor).map((t, idx) => (
@@ -394,12 +394,12 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="p-5 border-b border-gray-50">
           <h3 className="text-base font-bold text-gray-800">
-            {dados.usandoFolhaReal ? 'Custo Real por Funcionario' : 'Custo Estimado por Funcionario'}
+            {dados.usandoFolhaReal ? 'Custo Real por Funcionário' : 'Custo Estimado por Funcionário'}
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
             {dados.usandoFolhaReal
               ? 'Valores reais importados do espelho da folha (mes atual).'
-              : 'Salario + encargos CLT estimados (~47%). Importe o espelho da folha para valores reais.'}
+              : 'Salário + encargos CLT estimados (~47%). Importe o espelho da folha para valores reais.'}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -410,7 +410,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
                 <th className="text-left px-4 py-2 font-semibold text-gray-600 hidden sm:table-cell">Cargo</th>
                 <th className="text-left px-4 py-2 font-semibold text-gray-600 hidden md:table-cell">Unidade</th>
                 <th className="text-left px-4 py-2 font-semibold text-gray-600">Contrato</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Salario</th>
+                <th className="text-right px-4 py-2 font-semibold text-gray-600">Salário</th>
                 <th className="text-right px-4 py-2 font-semibold text-gray-600 hidden sm:table-cell">Encargos est.</th>
                 <th className="text-right px-4 py-2 font-semibold text-gray-600">Custo total</th>
               </tr>

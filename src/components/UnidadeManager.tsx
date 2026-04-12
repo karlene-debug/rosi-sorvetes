@@ -13,8 +13,8 @@ interface UnidadeManagerProps {
 
 const tipoLabels: Record<TipoUnidade, string> = {
   loja: 'Loja',
-  fabrica: 'Fabrica',
-  loja_fabrica: 'Loja + Fabrica',
+  fabrica: 'Fábrica',
+  loja_fabrica: 'Loja + Fábrica',
 }
 
 type SortField = 'nome' | 'tipo' | 'status'
@@ -140,12 +140,12 @@ export function UnidadeManager({ unidades, onAdd, onUpdate, onToggleStatus }: Un
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={temFabricaSorvete} onChange={e => setTemFabricaSorvete(e.target.checked)}
             className="w-4 h-4 text-[#E91E63] rounded border-gray-300 focus:ring-[#E91E63]" />
-          <span className="text-sm text-gray-700">Fabrica sorvete</span>
+          <span className="text-sm text-gray-700">Fábrica sorvete</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={temFabricaBolo} onChange={e => setTemFabricaBolo(e.target.checked)}
             className="w-4 h-4 text-[#E91E63] rounded border-gray-300 focus:ring-[#E91E63]" />
-          <span className="text-sm text-gray-700">Fabrica bolo</span>
+          <span className="text-sm text-gray-700">Fábrica bolo</span>
         </label>
       </div>
 

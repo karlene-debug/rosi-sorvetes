@@ -327,7 +327,7 @@ export function DashboardExecutivo({ unidades, unidadeSelecionada }: DashboardEx
             <p className="text-2xl font-bold text-blue-600">+{data.producaoHoje}</p>
             <p className="text-lg font-bold text-pink-600">-{data.saidaHoje}</p>
           </div>
-          <p className="text-sm text-gray-500">Producao / Saida hoje</p>
+          <p className="text-sm text-gray-500">Produção / Saída hoje</p>
         </div>
 
         <div className={cn(

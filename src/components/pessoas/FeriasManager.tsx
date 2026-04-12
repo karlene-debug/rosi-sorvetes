@@ -328,7 +328,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
                             </button>
                           )}
                           {onDelete && (
-                            <button onClick={() => { if (confirm('Excluir este registro de ferias?')) onDelete(f.id) }}
+                            <button onClick={() => { if (confirm('Excluir este registro de férias?')) onDelete(f.id) }}
                               className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Excluir">
                               <Trash2 size={13} />
                             </button>

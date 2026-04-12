@@ -99,7 +99,7 @@ export async function parseFolhaPDF(file: File): Promise<FolhaResumo> {
   }
 
   // Extrair mes/ano
-  const mesAnoMatch = fullText.match(/m[eê]s de\s+(\w+)\/(\d{4})/i)
+  const mesAnoMatch = fullText.match(/m[eê]s de\s+([\wÀ-ÿ]+)\/(\d{4})/i)
   if (!mesAnoMatch) {
     throw new Error('Nao foi possivel identificar o mes/ano do espelho da folha.')
   }
