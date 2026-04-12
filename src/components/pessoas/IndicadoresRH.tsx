@@ -421,7 +421,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         </div>
       </div>
 
-      {/* Custo estimado por funcionário */}
+      {/* Custo por funcionário */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="p-5 border-b border-gray-50">
           <h3 className="text-base font-bold text-gray-800">
@@ -429,7 +429,7 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
             {dados.usandoFolhaReal
-              ? 'Valores reais importados do espelho da folha (mes atual).'
+              ? `Valores reais do espelho da folha — ${MESES_NOMES[mesFiltro - 1]}/${anoFiltro}`
               : 'Salário + encargos CLT estimados (~47%). Importe o espelho da folha para valores reais.'}
           </p>
         </div>
@@ -441,17 +441,28 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
                 <th className="text-left px-4 py-2 font-semibold text-gray-600 hidden sm:table-cell">Cargo</th>
                 <th className="text-left px-4 py-2 font-semibold text-gray-600 hidden md:table-cell">Unidade</th>
                 <th className="text-left px-4 py-2 font-semibold text-gray-600">Contrato</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Salário</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600 hidden sm:table-cell">Encargos est.</th>
+                <th className="text-right px-4 py-2 font-semibold text-gray-600">{dados.usandoFolhaReal ? 'Proventos' : 'Salário'}</th>
+                <th className="text-right px-4 py-2 font-semibold text-gray-600 hidden sm:table-cell">{dados.usandoFolhaReal ? 'Descontos' : 'Encargos est.'}</th>
+                <th className="text-right px-4 py-2 font-semibold text-gray-600 hidden lg:table-cell">{dados.usandoFolhaReal ? 'Encargos' : ''}</th>
                 <th className="text-right px-4 py-2 font-semibold text-gray-600">Custo total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {dados.ativos
-                .sort((a, b) => (b.salario || 0) - (a.salario || 0))
+                .sort((a, b) => {
+                  if (dados.usandoFolhaReal) {
+                    const fa = folhaReal.find(fr => fr.funcionarioId === a.id)
+                    const fb = folhaReal.find(fr => fr.funcionarioId === b.id)
+                    return (fb?.custoTotal || 0) - (fa?.custoTotal || 0)
+                  }
+                  return (b.salario || 0) - (a.salario || 0)
+                })
                 .map(f => {
-                  const encargos = f.tipoContrato === 'clt' ? (f.salario || 0) * 0.4744 : 0
-                  const custo = (f.salario || 0) + encargos
+                  const fr = dados.usandoFolhaReal ? folhaReal.find(r => r.funcionarioId === f.id) : null
+                  const proventos = fr ? fr.salarioBruto : (f.salario || 0)
+                  const descontos = fr ? fr.descontos : 0
+                  const encargos = fr ? fr.encargos : (f.tipoContrato === 'clt' ? (f.salario || 0) * 0.4744 : 0)
+                  const custo = fr ? fr.custoTotal : (proventos + encargos)
                   const contratoLabels: Record<string, string> = {
                     clt: 'CLT', diarista: 'Diarista', socio: 'Socio', pj: 'PJ', estagiario: 'Estagio',
                   }
@@ -465,8 +476,13 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
                           {contratoLabels[f.tipoContrato || ''] || f.tipoContrato || '-'}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right text-gray-800">{formatCurrency(f.salario || 0)}</td>
-                      <td className="px-4 py-2.5 text-right text-gray-500 hidden sm:table-cell">{encargos > 0 ? formatCurrency(encargos) : '-'}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-800">{formatCurrency(proventos)}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-500 hidden sm:table-cell">
+                        {fr ? <span className="text-red-500">-{formatCurrency(descontos)}</span> : (encargos > 0 ? formatCurrency(encargos) : '-')}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-gray-500 hidden lg:table-cell">
+                        {fr ? formatCurrency(encargos) : ''}
+                      </td>
                       <td className="px-4 py-2.5 text-right font-bold text-gray-800">{formatCurrency(custo)}</td>
                     </tr>
                   )
@@ -474,9 +490,16 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50">
-                <td colSpan={4} className="px-4 py-2.5 font-bold text-gray-700">Total</td>
+                <td colSpan={4} className="px-4 py-2.5 font-bold text-gray-700">Total ({dados.ativos.length})</td>
                 <td className="px-4 py-2.5 text-right font-bold text-gray-800">{formatCurrency(dados.salarioTotal)}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-gray-500 hidden sm:table-cell">{formatCurrency(dados.encargosTotal)}</td>
+                <td className="px-4 py-2.5 text-right font-bold text-gray-500 hidden sm:table-cell">
+                  {dados.usandoFolhaReal
+                    ? <span className="text-red-500">-{formatCurrency(folhaReal.reduce((s, f) => s + f.descontos, 0))}</span>
+                    : formatCurrency(dados.encargosTotal)}
+                </td>
+                <td className="px-4 py-2.5 text-right font-bold text-gray-500 hidden lg:table-cell">
+                  {dados.usandoFolhaReal ? formatCurrency(dados.encargosTotal) : ''}
+                </td>
                 <td className="px-4 py-2.5 text-right font-bold text-[#E91E63]">{formatCurrency(dados.custoEstimadoTotal)}</td>
               </tr>
             </tfoot>
