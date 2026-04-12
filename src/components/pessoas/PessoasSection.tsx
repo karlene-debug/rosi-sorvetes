@@ -555,6 +555,21 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
     setOcorrencias(prev => prev.filter(o => o.id !== id))
   }
 
+  const handleDeleteFuncionario = async (id: string) => {
+    // Limpar registros relacionados antes de excluir
+    await supabase.from('pendencias_rh').delete().eq('funcionario_id', id)
+    await supabase.from('folha_pagamento').delete().eq('funcionario_id', id)
+    await supabase.from('ocorrencias').delete().eq('funcionario_id', id)
+    await supabase.from('ferias').delete().eq('funcionario_id', id)
+    await supabase.from('beneficios').delete().eq('funcionario_id', id)
+    await supabase.from('historico_salarial').delete().eq('funcionario_id', id)
+    await supabase.from('funcionarios').delete().eq('id', id)
+    setFuncionarios(prev => prev.filter(f => f.id !== id))
+    setOcorrencias(prev => prev.filter(o => o.funcionarioId !== id))
+    setFerias(prev => prev.filter(f => f.funcionarioId !== id))
+    setPendencias(prev => prev.filter(p => p.funcionarioId !== id))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -613,6 +628,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           onDemitir={handleDemitirFuncionario}
           onDescartarPendencia={handleDescartarPendencia}
           onImportTRCT={handleImportTRCT}
+          onDelete={handleDeleteFuncionario}
         />
       )}
       {activeTab === 'folha' && (
