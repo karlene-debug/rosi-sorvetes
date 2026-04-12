@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario } from './PessoasSection'
@@ -295,6 +295,34 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
     }
   }
 
+  type FolhaSortField = 'nome' | 'proventos' | 'descontos' | 'liquido' | 'encargos' | 'custoTotal'
+  const [folhaSortField, setFolhaSortField] = useState<FolhaSortField>('custoTotal')
+  const [folhaSortDir, setFolhaSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const toggleFolhaSort = (field: FolhaSortField) => {
+    if (folhaSortField === field) setFolhaSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setFolhaSortField(field); setFolhaSortDir('desc') }
+  }
+  const FSortIcon = ({ field }: { field: FolhaSortField }) => {
+    if (folhaSortField !== field) return <ArrowUpDown size={10} className="text-gray-300" />
+    return folhaSortDir === 'asc' ? <ArrowUp size={10} className="text-[#E91E63]" /> : <ArrowDown size={10} className="text-[#E91E63]" />
+  }
+
+  const sortedFolha = useMemo(() => {
+    return [...folhaItems].sort((a, b) => {
+      const dir = folhaSortDir === 'asc' ? 1 : -1
+      switch (folhaSortField) {
+        case 'nome': return a.nome.localeCompare(b.nome) * dir
+        case 'proventos': return (a.salarioBruto - b.salarioBruto) * dir
+        case 'descontos': return (a.descontos - b.descontos) * dir
+        case 'liquido': return (a.liquido - b.liquido) * dir
+        case 'encargos': return (a.encargosEmpresa - b.encargosEmpresa) * dir
+        case 'custoTotal': return (a.custoTotal - b.custoTotal) * dir
+        default: return 0
+      }
+    })
+  }, [folhaItems, folhaSortField, folhaSortDir])
+
   const totais = useMemo(() => {
     return folhaItems.reduce((acc, i) => ({
       salarioBruto: acc.salarioBruto + i.salarioBruto,
@@ -507,20 +535,20 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/80">
-                    <th className="text-left px-3 py-2 font-semibold text-gray-600 text-xs">Funcionário</th>
-                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs">Proventos</th>
+                    <th className="text-left px-3 py-2 text-xs"><button onClick={() => toggleFolhaSort('nome')} className="flex items-center gap-1 font-semibold text-gray-600 hover:text-gray-900">Funcionário <FSortIcon field="nome" /></button></th>
+                    <th className="text-right px-2 py-2 text-xs"><button onClick={() => toggleFolhaSort('proventos')} className="flex items-center gap-1 font-semibold text-gray-600 hover:text-gray-900 ml-auto">Proventos <FSortIcon field="proventos" /></button></th>
                     <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden lg:table-cell">INSS</th>
                     <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden lg:table-cell">Adiant.</th>
                     <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden xl:table-cell">Faltas</th>
                     <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden xl:table-cell">Sindicato</th>
-                    <th className="text-right px-2 py-2 font-semibold text-red-500 text-xs">Desc. total</th>
-                    <th className="text-right px-2 py-2 font-semibold text-green-600 text-xs hidden sm:table-cell">Líquido</th>
-                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden md:table-cell">Encargos</th>
-                    <th className="text-right px-2 py-2 font-bold text-[#E91E63] text-xs">Custo total</th>
+                    <th className="text-right px-2 py-2 text-xs"><button onClick={() => toggleFolhaSort('descontos')} className="flex items-center gap-1 font-semibold text-red-500 hover:text-red-700 ml-auto">Desc. total <FSortIcon field="descontos" /></button></th>
+                    <th className="text-right px-2 py-2 text-xs hidden sm:table-cell"><button onClick={() => toggleFolhaSort('liquido')} className="flex items-center gap-1 font-semibold text-green-600 hover:text-green-800 ml-auto">Líquido <FSortIcon field="liquido" /></button></th>
+                    <th className="text-right px-2 py-2 text-xs hidden md:table-cell"><button onClick={() => toggleFolhaSort('encargos')} className="flex items-center gap-1 font-semibold text-gray-600 hover:text-gray-900 ml-auto">Encargos <FSortIcon field="encargos" /></button></th>
+                    <th className="text-right px-2 py-2 text-xs"><button onClick={() => toggleFolhaSort('custoTotal')} className="flex items-center gap-1 font-bold text-[#E91E63] ml-auto">Custo total <FSortIcon field="custoTotal" /></button></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {folhaItems.sort((a, b) => b.custoTotal - a.custoTotal).map(item => (
+                  {sortedFolha.map(item => (
                     <tr key={item.funcionarioId} className="hover:bg-gray-50/50">
                       <td className="px-3 py-2">
                         <span className="font-medium text-gray-800 text-xs">{item.nome}</span>
