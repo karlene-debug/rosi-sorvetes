@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload, Trash2 } from 'lucide-react'
+import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload, Trash2, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Cargo, Funcionario, Beneficio, PendenciaRH, MotivoDesligamento } from './PessoasSection'
 import { parseTRCTPDF } from '@/lib/trctParser'
@@ -691,6 +691,51 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
                 {f.salario && <div><span className="text-gray-400 text-xs">Salario</span><br/><span className="text-green-700 font-semibold">R$ {f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
               </div>
               {f.observacao && <p className="text-sm text-gray-500"><span className="text-gray-400">Obs:</span> {f.observacao}</p>}
+
+              {/* Dados da Rescisão (funcionário inativo) */}
+              {f.status === 'inativo' && (
+                <div className="bg-red-50/50 rounded-lg p-3 space-y-2">
+                  <p className="text-sm font-semibold text-red-700 flex items-center gap-1"><FileText size={14} /> Dados da Rescisão</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                    {f.tipoDemissao && <div><span className="text-gray-400 text-xs">Tipo</span><br/><span className="text-gray-700">{tipoDemissaoLabels[f.tipoDemissao] || f.tipoDemissao}</span></div>}
+                    {f.avisoPrevio && <div><span className="text-gray-400 text-xs">Aviso prévio</span><br/><span className="text-gray-700 capitalize">{f.avisoPrevio}</span></div>}
+                    {f.causaAfastamento && <div><span className="text-gray-400 text-xs">Causa ({f.codAfastamento})</span><br/><span className="text-gray-700">{f.causaAfastamento}</span></div>}
+                    {f.valorRescisao && <div><span className="text-gray-400 text-xs">Valor líquido rescisão</span><br/><span className="text-red-700 font-semibold">R$ {f.valorRescisao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
+                    {f.multaFgts && <div><span className="text-gray-400 text-xs">Multa FGTS</span><br/><span className="text-gray-700">R$ {f.multaFgts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
+                  </div>
+                  {f.observacaoRescisao && <p className="text-xs text-gray-500">{f.observacaoRescisao}</p>}
+
+                  {/* Detalhamento TRCT */}
+                  {f.trctStatus === 'importado' && f.trctTotalBruto && (
+                    <div className="mt-2 pt-2 border-t border-red-100">
+                      <p className="text-xs font-semibold text-red-600 mb-1.5">Verbas Rescisórias (TRCT)</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <p className="text-gray-500 font-medium col-span-2">Proventos:</p>
+                        {f.trctSaldoSalario ? <div className="flex justify-between"><span className="text-gray-600">Saldo salário</span><span className="text-gray-800">R$ {f.trctSaldoSalario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trct13Proporcional ? <div className="flex justify-between"><span className="text-gray-600">13º proporcional</span><span className="text-gray-800">R$ {f.trct13Proporcional.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctFeriasProporcionais ? <div className="flex justify-between"><span className="text-gray-600">Férias proporcionais</span><span className="text-gray-800">R$ {f.trctFeriasProporcionais.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctFeriasVencidas ? <div className="flex justify-between"><span className="text-gray-600">Férias vencidas</span><span className="text-gray-800">R$ {f.trctFeriasVencidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctTercoFerias ? <div className="flex justify-between"><span className="text-gray-600">1/3 férias</span><span className="text-gray-800">R$ {f.trctTercoFerias.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctAvisoIndenizado ? <div className="flex justify-between"><span className="text-gray-600">Aviso indenizado</span><span className="text-gray-800">R$ {f.trctAvisoIndenizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctHorasExtras ? <div className="flex justify-between"><span className="text-gray-600">Horas extras</span><span className="text-gray-800">R$ {f.trctHorasExtras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctMulta477 ? <div className="flex justify-between"><span className="text-gray-600">Multa art. 477</span><span className="text-gray-800">R$ {f.trctMulta477.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctMulta479 ? <div className="flex justify-between"><span className="text-gray-600">Multa art. 479</span><span className="text-gray-800">R$ {f.trctMulta479.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        <div className="flex justify-between font-semibold border-t border-red-100 pt-1 col-span-2 sm:col-span-1"><span className="text-gray-700">Total bruto</span><span className="text-gray-900">R$ {f.trctTotalBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
+
+                        <p className="text-gray-500 font-medium col-span-2 mt-1">Deduções:</p>
+                        {f.trctInss ? <div className="flex justify-between"><span className="text-gray-600">INSS</span><span className="text-red-600">-R$ {f.trctInss.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctIrrf ? <div className="flex justify-between"><span className="text-gray-600">IRRF</span><span className="text-red-600">-R$ {f.trctIrrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctAdiantamento ? <div className="flex justify-between"><span className="text-gray-600">Adiantamento</span><span className="text-red-600">-R$ {f.trctAdiantamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctPensao ? <div className="flex justify-between"><span className="text-gray-600">Pensão alimentícia</span><span className="text-red-600">-R$ {f.trctPensao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+                        {f.trctTotalDeducoes ? <div className="flex justify-between font-semibold border-t border-red-100 pt-1"><span className="text-gray-700">Total deduções</span><span className="text-red-700">-R$ {f.trctTotalDeducoes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div> : null}
+
+                        {f.trctValorLiquido && <div className="flex justify-between font-bold bg-red-100 rounded px-2 py-1 col-span-2 mt-1"><span className="text-red-800">Valor líquido</span><span className="text-red-800">R$ {f.trctValorLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {bens.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold text-gray-600 flex items-center gap-1 mb-2"><Gift size={14} /> Benefícios</p>
