@@ -369,6 +369,16 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
   }
 
   const handleImportTRCT = async (funcionarioId: string, trctData: Record<string, unknown>) => {
+    // Validar CPF: verificar se o CPF do TRCT bate com o funcionário
+    const func = funcionarios.find(f => f.id === funcionarioId)
+    const cpfTRCT = ((trctData.cpfTrabalhador as string) || '').replace(/[.\-/\s]/g, '')
+    const cpfFunc = (func?.cpf || '').replace(/[.\-/\s]/g, '')
+    if (cpfTRCT && cpfFunc && cpfTRCT !== cpfFunc) {
+      throw new Error(`CPF do TRCT (${trctData.cpfTrabalhador}) não confere com o funcionário ${func?.nome} (${func?.cpf}). Verifique se o documento é do funcionário correto.`)
+    }
+
+    const valorLiquido = Number(trctData.valorLiquido) || 0
+
     const updates: Record<string, unknown> = {
       trct_status: 'importado',
       trct_importado_em: new Date().toISOString(),
@@ -391,16 +401,54 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
       trct_adiantamento: trctData.adiantamentoSalarial || 0,
       trct_pensao: trctData.pensaoAlimenticia || 0,
       trct_total_deducoes: trctData.totalDeducoes || 0,
-      trct_valor_liquido: trctData.valorLiquido || 0,
-      valor_rescisao: trctData.valorLiquido || 0,
+      trct_valor_liquido: valorLiquido,
+      valor_rescisao: valorLiquido,
+      multa_fgts: trctData.multa479 || 0,
     }
     await supabase.from('funcionarios').update(updates).eq('id', funcionarioId)
 
-    // Resolver pendencia de TRCT se existir
+    // Gerar conta a pagar se valor liquido > 0
+    if (valorLiquido > 0 && func) {
+      const dataDemissao = func.dataDemissao || new Date().toISOString().split('T')[0]
+      const vencimento = new Date(dataDemissao + 'T12:00:00')
+      vencimento.setDate(vencimento.getDate() + 10) // prazo legal: 10 dias
+
+      // Buscar plano de contas "Gasto com Pessoal"
+      const { data: planoData } = await supabase
+        .from('plano_contas')
+        .select('id')
+        .ilike('nome', '%rescis%')
+        .limit(1)
+      // Fallback: buscar qualquer conta de gasto pessoal
+      let planoId = planoData?.[0]?.id
+      if (!planoId) {
+        const { data: planoFb } = await supabase
+          .from('plano_contas')
+          .select('id')
+          .eq('grupo', 'gasto_pessoal')
+          .limit(1)
+        planoId = planoFb?.[0]?.id
+      }
+
+      await supabase.from('contas').insert({
+        descricao: `Rescisão - ${func.nome}`,
+        valor: valorLiquido,
+        data_documento: dataDemissao,
+        data_vencimento: vencimento.toISOString().split('T')[0],
+        plano_contas_id: planoId || null,
+        unidade_id: func.unidadeId || null,
+        situacao: 'pendente',
+        recorrente: false,
+        mes_referencia: vencimento.getMonth() + 1,
+        ano_referencia: vencimento.getFullYear(),
+        origem: 'plataforma',
+      })
+    }
+
+    // Resolver pendencias
     await supabase.from('pendencias_rh')
       .update({ status: 'resolvida', resposta: 'TRCT importado', resolvido_em: new Date().toISOString() })
       .eq('funcionario_id', funcionarioId)
-      .eq('tipo', 'trct_pendente')
       .eq('status', 'pendente')
 
     // Recarregar dados
