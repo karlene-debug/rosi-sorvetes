@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Cargo, Funcionario, Beneficio } from './PessoasSection'
+import type { Cargo, Funcionario, Beneficio, PendenciaRH } from './PessoasSection'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/Modal'
@@ -47,16 +47,34 @@ interface BeneficioForm {
   percentualColaborador: string
 }
 
+const tipoDemissaoLabels: Record<string, string> = {
+  sem_justa_causa: 'Sem justa causa',
+  justa_causa: 'Justa causa',
+  pedido_demissao: 'Pedido de demissão',
+  acordo: 'Acordo (reforma trabalhista)',
+}
+
+const avisoPrevioLabels: Record<string, string> = {
+  trabalhado: 'Trabalhado',
+  indenizado: 'Indenizado',
+  dispensado: 'Dispensado',
+}
+
 interface FuncionarioManagerProps {
   funcionarios: Funcionario[]
   cargos: Cargo[]
   unidades: Unidade[]
+  pendencias?: PendenciaRH[]
   onAdd: (f: Omit<Funcionario, 'id' | 'cargoNome' | 'unidadeNome'>) => Promise<void>
   onUpdate?: (id: string, f: Partial<Funcionario>) => Promise<void>
-  onDemitir?: (id: string, dataDemissao: string) => Promise<void>
+  onDemitir?: (id: string, dataDemissao: string, rescisao?: {
+    tipoDemissao?: string; motivoDemissao?: string; avisoPrevio?: string
+    multaFgts?: number; valorRescisao?: number; saldoFgts?: number; observacaoRescisao?: string
+  }) => Promise<void>
+  onDescartarPendencia?: (id: string) => Promise<void>
 }
 
-export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUpdate, onDemitir }: FuncionarioManagerProps) {
+export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias = [], onAdd, onUpdate, onDemitir, onDescartarPendencia }: FuncionarioManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -65,6 +83,10 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
   const [editingId, setEditingId] = useState<string | null>(null)
   const [demitindoId, setDemitindoId] = useState<string | null>(null)
   const [dataDemissao, setDataDemissão] = useState('')
+  const [rescisaoForm, setRescisaoForm] = useState({
+    tipoDemissao: 'sem_justa_causa', motivoDemissao: '', avisoPrevio: 'indenizado',
+    multaFgts: '', valorRescisao: '', saldoFgts: '', observacaoRescisao: '',
+  })
   const [reajusteId, setReajusteId] = useState<string | null>(null)
   const [reajusteForm, setReajusteForm] = useState({ salarioNovo: '', motivo: '', registradoPor: '' })
   const [funcBenefícios, setFuncBenefícios] = useState<Record<string, Beneficio[]>>({})
@@ -178,9 +200,18 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
     if (!demitindoId || !dataDemissao || !onDemitir) return
     setSaving(true)
     try {
-      await onDemitir(demitindoId, dataDemissao)
+      await onDemitir(demitindoId, dataDemissao, {
+        tipoDemissao: rescisaoForm.tipoDemissao || undefined,
+        motivoDemissao: rescisaoForm.motivoDemissao || undefined,
+        avisoPrevio: rescisaoForm.avisoPrevio || undefined,
+        multaFgts: rescisaoForm.multaFgts ? parseFloat(rescisaoForm.multaFgts) : undefined,
+        valorRescisao: rescisaoForm.valorRescisao ? parseFloat(rescisaoForm.valorRescisao) : undefined,
+        saldoFgts: rescisaoForm.saldoFgts ? parseFloat(rescisaoForm.saldoFgts) : undefined,
+        observacaoRescisao: rescisaoForm.observacaoRescisao || undefined,
+      })
       setDemitindoId(null)
       setDataDemissão('')
+      setRescisaoForm({ tipoDemissao: 'sem_justa_causa', motivoDemissao: '', avisoPrevio: 'indenizado', multaFgts: '', valorRescisao: '', saldoFgts: '', observacaoRescisao: '' })
       setSuccessMsg('Funcionário demitido. Status alterado para inativo.')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
@@ -298,6 +329,47 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-green-600" />
           <p className="text-sm font-medium text-green-800">{successMsg}</p>
+        </div>
+      )}
+
+      {/* Pendências de RH */}
+      {pendencias.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <UserX size={18} className="text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800">
+              {pendencias.length} pendência(s) para resolver
+            </span>
+          </div>
+          {pendencias.map(p => {
+            const func = funcionarios.find(f => f.id === p.funcionarioId)
+            const MESES_NOMES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+            return (
+              <div key={p.id} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white rounded-lg p-3 border border-amber-100">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">{p.funcionarioNome || func?.nome}</p>
+                  <p className="text-xs text-amber-600">{p.descricao}</p>
+                  {p.mesReferencia && p.anoReferencia && (
+                    <p className="text-xs text-gray-400">Ref: {MESES_NOMES[p.mesReferencia]}/{p.anoReferencia}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setDemitindoId(p.funcionarioId); setDataDemissão('') }}
+                    className="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Foi desligado
+                  </button>
+                  <button
+                    onClick={() => onDescartarPendencia?.(p.id)}
+                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    Continua ativo
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -634,24 +706,81 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
         </div>
       </Modal>
 
-      {/* Modal Demitir */}
+      {/* Modal Demitir / Rescisão */}
       <Modal open={!!demitindoId} onClose={() => { setDemitindoId(null); setDataDemissão('') }}
-        title="Demissão"
-        subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="sm">
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">Confirme a data de demissao. O status sera alterado para inativo.</p>
+        title="Desligamento e Rescisão"
+        subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Data de desligamento *</label>
+              <input type="date" value={dataDemissao}
+                onChange={e => setDataDemissão(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+              <select value={rescisaoForm.tipoDemissao}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, tipoDemissao: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400">
+                {Object.entries(tipoDemissaoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Aviso prévio</label>
+              <select value={rescisaoForm.avisoPrevio}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, avisoPrevio: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400">
+                {Object.entries(avisoPrevioLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Motivo</label>
+              <input type="text" value={rescisaoForm.motivoDemissao}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, motivoDemissao: e.target.value })}
+                placeholder="Ex: Término de contrato"
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Valor rescisão (R$)</label>
+              <input type="number" step="0.01" value={rescisaoForm.valorRescisao}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, valorRescisao: e.target.value })}
+                placeholder="0,00"
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Multa FGTS (R$)</label>
+              <input type="number" step="0.01" value={rescisaoForm.multaFgts}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, multaFgts: e.target.value })}
+                placeholder="0,00"
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Saldo FGTS (R$)</label>
+              <input type="number" step="0.01" value={rescisaoForm.saldoFgts}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, saldoFgts: e.target.value })}
+                placeholder="0,00"
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+            </div>
+          </div>
+
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Data de demissao *</label>
-            <input type="date" value={dataDemissao}
-              onChange={e => setDataDemissão(e.target.value)}
+            <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
+            <textarea value={rescisaoForm.observacaoRescisao}
+              onChange={e => setRescisaoForm({ ...rescisaoForm, observacaoRescisao: e.target.value })}
+              rows={2} placeholder="Informações adicionais sobre o desligamento..."
               className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
           </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
             <button onClick={() => { setDemitindoId(null); setDataDemissão('') }}
               className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
             <button onClick={handleDemitir} disabled={!dataDemissao || saving}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-              {saving ? 'Processando...' : 'Confirmar Demissão'}
+              {saving ? 'Processando...' : 'Confirmar Desligamento'}
             </button>
           </div>
         </div>

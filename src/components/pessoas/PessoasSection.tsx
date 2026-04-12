@@ -41,6 +41,27 @@ export interface Funcionario {
   jornada?: string
   status: string
   observacao?: string
+  // Rescisão
+  motivoDemissao?: string
+  tipoDemissao?: string
+  avisoPrevio?: string
+  multaFgts?: number
+  valorRescisao?: number
+  saldoFgts?: number
+  observacaoRescisao?: string
+}
+
+export interface PendenciaRH {
+  id: string
+  funcionarioId: string
+  funcionarioNome?: string
+  tipo: string
+  descricao: string
+  mesReferencia?: number
+  anoReferencia?: number
+  status: string
+  resposta?: string
+  criadoEm: string
 }
 
 export interface Beneficio {
@@ -107,6 +128,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([])
   const [ferias, setFerias] = useState<Ferias[]>([])
+  const [pendencias, setPendencias] = useState<PendenciaRH[]>([])
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
 
@@ -118,11 +140,16 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         { data: funcData, error: fErr },
         { data: ocData, error: oErr },
         feriasResult,
+        pendenciasResult,
       ] = await Promise.all([
         supabase.from('cargos').select('*').order('nome'),
         supabase.from('funcionarios').select('*, cargos(nome), unidades(nome)').order('nome'),
         supabase.from('ocorrencias').select('*, funcionarios(nome)').order('data', { ascending: false }).limit(200),
         supabase.from('vw_ferias_vencimentos').select('*').then(
+          (r: { data: Record<string, unknown>[] | null }) => r,
+          () => ({ data: null })
+        ),
+        supabase.from('pendencias_rh').select('*, funcionarios(nome)').eq('status', 'pendente').order('criado_em', { ascending: false }).then(
           (r: { data: Record<string, unknown>[] | null }) => r,
           () => ({ data: null })
         ),
@@ -150,6 +177,13 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         salario: f.salario ? Number(f.salario) : undefined,
         tipoContrato: (f.tipo_contrato as string) || undefined, jornada: (f.jornada as string) || undefined,
         status: f.status as string, observacao: (f.observacao as string) || undefined,
+        motivoDemissao: (f.motivo_demissao as string) || undefined,
+        tipoDemissao: (f.tipo_demissao as string) || undefined,
+        avisoPrevio: (f.aviso_previo as string) || undefined,
+        multaFgts: f.multa_fgts ? Number(f.multa_fgts) : undefined,
+        valorRescisao: f.valor_rescisao ? Number(f.valor_rescisao) : undefined,
+        saldoFgts: f.saldo_fgts ? Number(f.saldo_fgts) : undefined,
+        observacaoRescisao: (f.observacao_rescisao as string) || undefined,
       })))
 
       setOcorrencias((ocData || []).map((o: Record<string, unknown>) => ({
@@ -172,6 +206,20 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         dataConfirmacao: (f.data_confirmacao as string) || undefined,
         status: f.status as string,
         alerta: (f.alerta as string) || undefined, observacao: (f.observacao as string) || undefined,
+      })))
+
+      const pData = pendenciasResult?.data
+      setPendencias((pData || []).map((p: Record<string, unknown>) => ({
+        id: p.id as string,
+        funcionarioId: p.funcionario_id as string,
+        funcionarioNome: (p.funcionarios as Record<string, string> | null)?.nome || undefined,
+        tipo: p.tipo as string,
+        descricao: p.descricao as string,
+        mesReferencia: (p.mes_referencia as number) || undefined,
+        anoReferencia: (p.ano_referencia as number) || undefined,
+        status: p.status as string,
+        resposta: (p.resposta as string) || undefined,
+        criadoEm: p.criado_em as string,
       })))
 
       setConnected(true)
@@ -256,18 +304,40 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
     } : f))
   }
 
-  const handleDemitirFuncionario = async (id: string, dataDemissao: string) => {
-    const { error } = await supabase
-      .from('funcionarios')
-      .update({ status: 'inativo', data_demissao: dataDemissao })
-      .eq('id', id)
+  const handleDemitirFuncionario = async (id: string, dataDemissao: string, rescisao?: {
+    tipoDemissao?: string; motivoDemissao?: string; avisoPrevio?: string
+    multaFgts?: number; valorRescisao?: number; saldoFgts?: number; observacaoRescisao?: string
+  }) => {
+    const updates: Record<string, unknown> = { status: 'inativo', data_demissao: dataDemissao }
+    if (rescisao) {
+      if (rescisao.tipoDemissao) updates.tipo_demissao = rescisao.tipoDemissao
+      if (rescisao.motivoDemissao) updates.motivo_demissao = rescisao.motivoDemissao
+      if (rescisao.avisoPrevio) updates.aviso_previo = rescisao.avisoPrevio
+      if (rescisao.multaFgts) updates.multa_fgts = rescisao.multaFgts
+      if (rescisao.valorRescisao) updates.valor_rescisao = rescisao.valorRescisao
+      if (rescisao.saldoFgts) updates.saldo_fgts = rescisao.saldoFgts
+      if (rescisao.observacaoRescisao) updates.observacao_rescisao = rescisao.observacaoRescisao
+    }
+    const { error } = await supabase.from('funcionarios').update(updates).eq('id', id)
     if (error) throw error
 
     setFuncionarios(prev => prev.map(f => f.id === id ? {
-      ...f,
-      status: 'inativo',
-      dataDemissao,
+      ...f, status: 'inativo', dataDemissao, ...rescisao,
     } : f))
+
+    // Resolver pendências deste funcionário
+    await supabase.from('pendencias_rh')
+      .update({ status: 'resolvida', resposta: 'Desligado', resolvido_em: new Date().toISOString() })
+      .eq('funcionario_id', id)
+      .eq('status', 'pendente')
+    setPendencias(prev => prev.filter(p => p.funcionarioId !== id))
+  }
+
+  const handleDescartarPendencia = async (pendenciaId: string) => {
+    await supabase.from('pendencias_rh')
+      .update({ status: 'descartada', resposta: 'Continua ativo', resolvido_em: new Date().toISOString() })
+      .eq('id', pendenciaId)
+    setPendencias(prev => prev.filter(p => p.id !== pendenciaId))
   }
 
   const handleAddOcorrencia = async (o: Omit<Ocorrencia, 'id' | 'funcionarioNome'>) => {
@@ -469,9 +539,11 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           funcionarios={funcionarios}
           cargos={cargos}
           unidades={unidades}
+          pendencias={pendencias}
           onAdd={handleAddFuncionario}
           onUpdate={handleUpdateFuncionario}
           onDemitir={handleDemitirFuncionario}
+          onDescartarPendencia={handleDescartarPendencia}
         />
       )}
       {activeTab === 'folha' && (

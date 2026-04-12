@@ -196,10 +196,24 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
         .filter(f => f.cpf && !cpfsNoEspelho.has(normalizeCPF(f.cpf)))
         .map(f => ({ nome: f.nome, id: f.id }))
 
+      // Gerar pendências no banco para ausentes
+      const MESES_NOMES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      for (const a of ausentes) {
+        await supabase.from('pendencias_rh').upsert({
+          funcionario_id: a.id,
+          tipo: 'ausente_folha',
+          descricao: `Não apareceu no espelho da folha de ${MESES_NOMES[resumo.mes]}/${resumo.ano}`,
+          mes_referencia: resumo.mes,
+          ano_referencia: resumo.ano,
+          status: 'pendente',
+        }, { onConflict: 'funcionario_id,tipo,mes_referencia,ano_referencia' })
+      }
+
       // Atualizar mes/ano para o do PDF
       setMes(resumo.mes)
       setAno(resumo.ano)
       setImportResult({ matched, unmatched, divergencias, ausentes, resumo })
+      onReloadFuncionarios?.()
 
       // Recarregar dados do mes importado diretamente
       try {
