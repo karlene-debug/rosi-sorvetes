@@ -32,11 +32,11 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 }
 
 const beneficioTipos = [
-  { tipo: 'vt', label: 'Vale Transporte (VT)', descPadrao: 'Desconto de 6% do salario' },
-  { tipo: 'vr', label: 'Vale Refeicao (VR)', descPadrao: '' },
-  { tipo: 'va', label: 'Vale Alimentacao (VA)', descPadrao: '' },
-  { tipo: 'plano_saude', label: 'Plano de Saude', descPadrao: '' },
-  { tipo: 'cesta_basica', label: 'Cesta Basica', descPadrao: '' },
+  { tipo: 'vt', label: 'Vale Transporte (VT)', descPadrao: 'Desconto de 6% do salário' },
+  { tipo: 'vr', label: 'Vale Refeição (VR)', descPadrao: '' },
+  { tipo: 'va', label: 'Vale Alimentação (VA)', descPadrao: '' },
+  { tipo: 'plano_saude', label: 'Plano de Saúde', descPadrao: '' },
+  { tipo: 'cesta_basica', label: 'Cesta Básica', descPadrao: '' },
   { tipo: 'outros', label: 'Outros', descPadrao: '' },
 ]
 
@@ -109,6 +109,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
     tipoContrato: 'clt',
     jornada: '',
     observacao: '',
+    status: 'ativo',
+    dataDemissao: '',
   })
   const [beneficiosForm, setBenefíciosForm] = useState<BeneficioForm[]>(
     beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' }))
@@ -129,8 +131,9 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
         salario: form.salario ? parseFloat(form.salario) : undefined,
         tipoContrato: form.tipoContrato || undefined,
         jornada: form.jornada || undefined,
-        status: 'ativo' as const,
+        status: form.status || 'ativo',
         observacao: form.observacao || undefined,
+        dataDemissao: form.dataDemissao || undefined,
       }
 
       if (editingId && onUpdate) {
@@ -179,7 +182,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
   }
 
   const resetForm = () => {
-    setForm({ nome: '', cpf: '', telefone: '', email: '', cargoId: '', unidadeId: '', dataAdmissao: '', salario: '', tipoContrato: 'clt', jornada: '', observacao: '' })
+    setForm({ nome: '', cpf: '', telefone: '', email: '', cargoId: '', unidadeId: '', dataAdmissao: '', salario: '', tipoContrato: 'clt', jornada: '', observacao: '', status: 'ativo', dataDemissao: '' })
     setBenefíciosForm(beneficioTipos.map(b => ({ tipo: b.tipo, ativo: false, valorEmpresa: '', valorColaborador: '', percentualColaborador: '' })))
   }
 
@@ -196,6 +199,8 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
       tipoContrato: f.tipoContrato || 'clt',
       jornada: f.jornada || '',
       observacao: f.observacao || '',
+      status: f.status || 'ativo',
+      dataDemissao: f.dataDemissao || '',
     })
     setEditingId(f.id)
     setShowForm(true)
@@ -544,6 +549,27 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
               })}
             </div>
 
+            {/* Status e demissão (só na edição) */}
+            {editingId && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+                  <select value={form.status} onChange={e => setForm({...form, status: e.target.value})}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300">
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                    <option value="ferias">Férias</option>
+                    <option value="afastado">Afastado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Data de demissão</label>
+                  <input type="date" value={form.dataDemissao} onChange={e => setForm({...form, dataDemissao: e.target.value})}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-violet-300" />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Observação</label>
               <textarea value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
@@ -583,7 +609,7 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
                 {sortedFuncionarios.map(f => (
                   <tr key={f.id} className={cn('hover:bg-gray-50/50', f.status !== 'ativo' && 'opacity-60')}>
                     <td className="px-3 py-2.5">
-                      <div className="font-medium text-sm text-gray-800">{f.nome}</div>
+                      <button onClick={() => handleEdit(f)} className="font-medium text-sm text-gray-800 hover:text-violet-600 text-left transition-colors">{f.nome}</button>
                       {f.telefone && <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><Phone size={10} />{f.telefone}</div>}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-gray-600">{f.cargoNome || '-'}</td>

@@ -315,6 +315,8 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
     if (updates.tipoContrato !== undefined) dbUpdates.tipo_contrato = updates.tipoContrato || null
     if (updates.jornada !== undefined) dbUpdates.jornada = updates.jornada || null
     if (updates.observacao !== undefined) dbUpdates.observacao = updates.observacao || null
+    if (updates.status !== undefined) dbUpdates.status = updates.status
+    if (updates.dataDemissao !== undefined) dbUpdates.data_demissao = updates.dataDemissao || null
 
     const { data, error } = await supabase
       .from('funcionarios')
