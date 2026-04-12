@@ -310,7 +310,7 @@ export function FeriasManager({ ferias, funcionarios, onProgramar, onConfirmar, 
                       </td>
                       <td className="px-3 py-2 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          {(f.status === 'programada' || f.status === 'pendente') && onEditar && (
+                          {onEditar && (
                             <button onClick={() => handleEdit(f)} className="p-1 text-gray-400 hover:text-violet-600" title="Editar">
                               <Pencil size={13} />
                             </button>
