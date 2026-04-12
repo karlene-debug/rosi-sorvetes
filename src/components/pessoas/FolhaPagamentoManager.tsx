@@ -8,6 +8,7 @@ import { parseFolhaPDF, type FolhaResumo } from '@/lib/folhaParser'
 interface FolhaPagamentoManagerProps {
   funcionarios: Funcionario[]
   unidadeSelecionada?: string
+  onReloadFuncionarios?: () => void
 }
 
 interface FolhaImportada {
@@ -32,7 +33,7 @@ function normalizeCPF(cpf: string): string {
   return (cpf || '').replace(/[.\-/\s]/g, '')
 }
 
-export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: FolhaPagamentoManagerProps) {
+export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onReloadFuncionarios }: FolhaPagamentoManagerProps) {
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth() + 1)
   const [ano, setAno] = useState(now.getFullYear())
@@ -293,6 +294,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
                           divergencias: prev.divergencias.filter(x => x.cpf !== d.cpf)
                         } : null)
                         setMsg(`Nome atualizado para "${d.nomeContabilidade}"`)
+                        onReloadFuncionarios?.()
                         setTimeout(() => { setMsg(''); loadFolha() }, 2000)
                       }}
                       className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -334,8 +336,9 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
                       })
                       if (!error) {
                         setImportResult(prev => prev ? { ...prev, unmatched: prev.unmatched.filter(x => x.cpf !== u.cpf) } : null)
-                        setMsg(`"${u.nome}" cadastrado! Reimporte o PDF para completar.`)
-                        setTimeout(() => setMsg(''), 4000)
+                        setMsg(`"${u.nome}" cadastrado!`)
+                        onReloadFuncionarios?.()
+                        setTimeout(() => setMsg(''), 3000)
                       }
                     }}
                     className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 whitespace-nowrap"

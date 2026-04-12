@@ -468,6 +468,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         <FolhaPagamentoManager
           funcionarios={funcionarios}
           unidadeSelecionada={unidadeSelecionada}
+          onReloadFuncionarios={loadData}
         />
       )}
       {activeTab === 'cargos' && (
