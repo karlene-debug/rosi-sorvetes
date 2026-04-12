@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { Users, TrendingDown, DollarSign, Clock, AlertTriangle, UserPlus, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 import type { Funcionario, Ocorrencia, Ferias } from './PessoasSection'
 
 interface IndicadoresRHProps {
@@ -11,6 +12,15 @@ interface IndicadoresRHProps {
   unidadeSelecionada?: string
 }
 
+interface FolhaRealData {
+  funcionarioId: string
+  salarioBruto: number
+  descontos: number
+  encargos: number
+  horasExtras: number
+  custoTotal: number
+}
+
 const COLORS = ['#E91E63', '#9C27B0', '#2196F3', '#4CAF50', '#FF9800', '#795548', '#607D8B', '#F06292']
 
 function formatCurrency(value: number): string {
@@ -18,6 +28,34 @@ function formatCurrency(value: number): string {
 }
 
 export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSelecionada }: IndicadoresRHProps) {
+  const [folhaReal, setFolhaReal] = useState<FolhaRealData[]>([])
+  const [temFolhaReal, setTemFolhaReal] = useState(false)
+
+  // Buscar dados reais da folha do mes atual
+  useEffect(() => {
+    const now = new Date()
+    const mes = now.getMonth() + 1
+    const ano = now.getFullYear()
+    supabase
+      .from('folha_pagamento')
+      .select('funcionario_id, salario_bruto, descontos, encargos_empresa, horas_extras, custo_total')
+      .eq('mes', mes)
+      .eq('ano', ano)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setFolhaReal(data.map(r => ({
+            funcionarioId: r.funcionario_id,
+            salarioBruto: Number(r.salario_bruto),
+            descontos: Number(r.descontos),
+            encargos: Number(r.encargos_empresa),
+            horasExtras: Number(r.horas_extras),
+            custoTotal: Number(r.custo_total),
+          })))
+          setTemFolhaReal(true)
+        }
+      }, () => {})
+  }, [])
+
   const dados = useMemo(() => {
     // Filtrar por unidade se selecionada
     const funcs = unidadeSelecionada && unidadeSelecionada !== 'todas'
@@ -44,14 +82,27 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
       porContrato.set(key, (porContrato.get(key) || 0) + 1)
     }
 
-    // --- Custos ---
-    const salarioTotal = ativos.reduce((s, f) => s + (f.salario || 0), 0)
+    // --- Custos (usa folha real se disponivel) ---
+    let salarioTotal: number
+    let encargosTotal: number
+    let custoEstimadoTotal: number
+    let usandoFolhaReal = false
+
+    if (temFolhaReal && folhaReal.length > 0) {
+      // Filtrar folha real por funcionarios ativos da unidade selecionada
+      const folhaFiltrada = folhaReal.filter(fr => ativos.some(a => a.id === fr.funcionarioId))
+      salarioTotal = folhaFiltrada.reduce((s, f) => s + f.salarioBruto, 0)
+      encargosTotal = folhaFiltrada.reduce((s, f) => s + f.encargos, 0)
+      custoEstimadoTotal = folhaFiltrada.reduce((s, f) => s + f.custoTotal, 0)
+      usandoFolhaReal = folhaFiltrada.length > 0
+    } else {
+      salarioTotal = ativos.reduce((s, f) => s + (f.salario || 0), 0)
+      encargosTotal = ativos
+        .filter(f => f.tipoContrato === 'clt')
+        .reduce((s, f) => s + (f.salario || 0) * 0.4744, 0)
+      custoEstimadoTotal = salarioTotal + encargosTotal
+    }
     const salarioMedio = ativos.length > 0 ? salarioTotal / ativos.length : 0
-    // Encargos estimados CLT (~47.44%)
-    const encargosTotal = ativos
-      .filter(f => f.tipoContrato === 'clt')
-      .reduce((s, f) => s + (f.salario || 0) * 0.4744, 0)
-    const custoEstimadoTotal = salarioTotal + encargosTotal
 
     // --- Turnover (ultimos 12 meses) ---
     const hoje = new Date()
@@ -128,14 +179,14 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
       ativos, inativos,
       porUnidade: Array.from(porUnidade.entries()).map(([nome, valor]) => ({ nome, valor })),
       porContrato: Array.from(porContrato.entries()).map(([nome, valor]) => ({ nome, valor })),
-      salarioTotal, salarioMedio, encargosTotal, custoEstimadoTotal,
+      salarioTotal, salarioMedio, encargosTotal, custoEstimadoTotal, usandoFolhaReal,
       admissoes12m, demissoes12m, turnover, turnoverMensal,
       taxaAbsenteismo, diasPerdidos,
       absPorTipo: Array.from(absPorTipo.entries()).map(([nome, valor]) => ({ nome, valor })),
       feriasVencidas, feriasUrgentes, feriasAtencao, feriasEmAndamento,
       tempoCasaMedio,
     }
-  }, [funcionarios, ocorrencias, ferias, unidadeSelecionada])
+  }, [funcionarios, ocorrencias, ferias, unidadeSelecionada, folhaReal, temFolhaReal])
 
   const KpiCard = ({ icon, label, value, sub, color = 'gray' }: {
     icon: React.ReactNode; label: string; value: string; sub?: string; color?: string
@@ -172,9 +223,11 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
         />
         <KpiCard
           icon={<DollarSign size={22} className="text-green-600" />}
-          label="Folha estimada"
+          label={dados.usandoFolhaReal ? "Folha real (importada)" : "Folha estimada"}
           value={formatCurrency(dados.custoEstimadoTotal)}
-          sub={`Salarios ${formatCurrency(dados.salarioTotal)} + Encargos ${formatCurrency(dados.encargosTotal)}`}
+          sub={dados.usandoFolhaReal
+            ? `Proventos ${formatCurrency(dados.salarioTotal)} + Encargos ${formatCurrency(dados.encargosTotal)}`
+            : `Salarios ${formatCurrency(dados.salarioTotal)} + Encargos est. ${formatCurrency(dados.encargosTotal)}`}
           color="green"
         />
         <KpiCard
@@ -340,8 +393,14 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
       {/* Custo estimado por funcionário */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="p-5 border-b border-gray-50">
-          <h3 className="text-base font-bold text-gray-800">Custo Estimado por Funcionario</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Salario + encargos CLT estimados (~47%). Use a aba Folha para valores reais.</p>
+          <h3 className="text-base font-bold text-gray-800">
+            {dados.usandoFolhaReal ? 'Custo Real por Funcionario' : 'Custo Estimado por Funcionario'}
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {dados.usandoFolhaReal
+              ? 'Valores reais importados do espelho da folha (mes atual).'
+              : 'Salario + encargos CLT estimados (~47%). Importe o espelho da folha para valores reais.'}
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
