@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree, BarChart3, Wallet } from 'lucide-react'
+import { Users, Briefcase, AlertCircle, Loader2, WifiOff, Palmtree, BarChart3, Wallet, Settings, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FuncionarioManager } from './FuncionarioManager'
 import { CargoManager } from './CargoManager'
@@ -133,7 +133,7 @@ export interface Ferias {
   observacao?: string
 }
 
-type PessoasTab = 'indicadores' | 'funcionarios' | 'folha' | 'cargos' | 'ocorrencias' | 'ferias'
+type PessoasTab = 'indicadores' | 'funcionarios' | 'folha' | 'cargos' | 'ocorrencias' | 'ferias' | 'config'
 
 const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
   { id: 'indicadores', label: 'Indicadores', icon: <BarChart3 size={16} /> },
@@ -142,6 +142,7 @@ const tabs: { id: PessoasTab; label: string; icon: React.ReactNode }[] = [
   { id: 'cargos', label: 'Cargos', icon: <Briefcase size={16} /> },
   { id: 'ocorrencias', label: 'Ocorrências', icon: <AlertCircle size={16} /> },
   { id: 'ferias', label: 'Férias', icon: <Palmtree size={16} /> },
+  { id: 'config', label: 'Config', icon: <Settings size={16} /> },
 ]
 
 interface PessoasSectionProps {
@@ -743,6 +744,131 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           onDelete={handleDeleteFerias}
         />
       )}
+      {activeTab === 'config' && (
+        <ConfigRHSection
+          motivosDesligamento={motivosDesligamento}
+          onReload={loadData}
+        />
+      )}
+    </div>
+  )
+}
+
+// === Seção de Configurações RH ===
+
+function ConfigRHSection({ motivosDesligamento, onReload }: {
+  motivosDesligamento: MotivoDesligamento[]
+  onReload: () => void
+}) {
+  const [novoMotivo, setNovoMotivo] = useState('')
+  const [novaCategoria, setNovaCategoria] = useState('involuntario')
+  const [saving, setSaving] = useState(false)
+
+  const categoriaLabels: Record<string, string> = {
+    voluntario: 'Voluntário',
+    involuntario: 'Involuntário',
+    acordo: 'Acordo',
+  }
+
+  const handleAdd = async () => {
+    if (!novoMotivo.trim()) return
+    setSaving(true)
+    try {
+      await supabase.from('motivos_desligamento').insert({
+        descricao: novoMotivo.trim(),
+        categoria: novaCategoria,
+        status: 'ativo',
+      })
+      setNovoMotivo('')
+      onReload()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    await supabase.from('motivos_desligamento').delete().eq('id', id)
+    onReload()
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Motivos de Desligamento */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="p-5 border-b border-gray-50">
+          <h3 className="text-base font-bold text-gray-800">Motivos de Desligamento</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Cadastre os motivos usados no fluxo de desligamento de funcionários.</p>
+        </div>
+
+        {/* Formulário de adição */}
+        <div className="p-4 border-b border-gray-50 bg-gray-50/50">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descrição do motivo</label>
+              <input
+                type="text"
+                value={novoMotivo}
+                onChange={e => setNovoMotivo(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                placeholder="Ex: Redução de quadro, Término de contrato..."
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#E91E63]"
+              />
+            </div>
+            <div className="w-40">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoria</label>
+              <select
+                value={novaCategoria}
+                onChange={e => setNovaCategoria(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#E91E63]"
+              >
+                <option value="voluntario">Voluntário</option>
+                <option value="involuntario">Involuntário</option>
+                <option value="acordo">Acordo</option>
+              </select>
+            </div>
+            <button
+              onClick={handleAdd}
+              disabled={!novoMotivo.trim() || saving}
+              className="px-4 py-2 bg-[#E91E63] text-white rounded-lg text-sm font-medium hover:bg-[#C2185B] disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Plus size={14} />
+              Adicionar
+            </button>
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="divide-y divide-gray-50">
+          {motivosDesligamento.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-400">
+              Nenhum motivo cadastrado. Adicione acima.
+            </div>
+          ) : (
+            motivosDesligamento.map(m => (
+              <div key={m.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-800">{m.descricao}</span>
+                  <span className={cn(
+                    'text-[10px] px-2 py-0.5 rounded-full font-medium',
+                    m.categoria === 'voluntario' && 'bg-blue-50 text-blue-600',
+                    m.categoria === 'involuntario' && 'bg-red-50 text-red-600',
+                    m.categoria === 'acordo' && 'bg-amber-50 text-amber-600',
+                  )}>
+                    {categoriaLabels[m.categoria] || m.categoria}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleDelete(m.id)}
+                  className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                  title="Excluir motivo"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }
