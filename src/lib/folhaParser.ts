@@ -14,12 +14,11 @@ async function getPdfjs() {
   return pdfjsLib
 }
 
-// Dados parseados de cada funcionario
 export interface FolhaFuncionario {
   nome: string
   cpf: string
   funcao: string
-  dataAdmissao: string // YYYY-MM-DD
+  dataAdmissao: string
   salarioBase: number
   horasMensais: number
   totalProventos: number
@@ -29,7 +28,6 @@ export interface FolhaFuncionario {
   valorINSS: number
   valorFGTS: number
   baseIRRF: number
-  // Detalhes dos proventos
   horasExtras60: number
   horasExtras100: number
   adicionalNoturno: number
@@ -37,14 +35,12 @@ export interface FolhaFuncionario {
   trienio: number
   dsrExtras: number
   quebraCaixa: number
-  // Detalhes dos descontos
   contribuicaoNegocial: number
   faltasDias: number
   faltasHoras: number
   adiantamento: number
   inssFuncionario: number
   irrfFuncionario: number
-  // Ferias (se houver no mes)
   temFerias: boolean
   feriasBruto: number
   feriasINSS: number
@@ -57,13 +53,11 @@ export interface FolhaResumo {
   empresa: string
   cnpj: string
   funcionarios: FolhaFuncionario[]
-  // Resumo geral
   totalColaboradores: number
   totalProventos: number
   totalDescontos: number
   totalLiquido: number
-  // Impostos empresa
-  gps: number // INSS patronal
+  gps: number
   fgts: number
   irrf: number
   sindicato: number
@@ -105,7 +99,7 @@ export async function parseFolhaPDF(file: File): Promise<FolhaResumo> {
   }
 
   // Extrair mes/ano
-  const mesAnoMatch = fullText.match(/mês de\s+(\w+)\/(\d{4})/i)
+  const mesAnoMatch = fullText.match(/m[eê]s de\s+(\w+)\/(\d{4})/i)
   if (!mesAnoMatch) {
     throw new Error('Nao foi possivel identificar o mes/ano do espelho da folha.')
   }
@@ -117,179 +111,169 @@ export async function parseFolhaPDF(file: File): Promise<FolhaResumo> {
   const empresa = empresaMatch ? empresaMatch[1].trim() : ''
   const cnpj = empresaMatch ? empresaMatch[2].trim() : ''
 
-  // Extrair blocos de funcionarios
-  const funcionarios = parseFuncionarios(fullText)
-
-  // Extrair resumo geral
+  // Estrategia: encontrar todos os CPFs e trabalhar a partir deles
+  const funcionarios = parseFuncionariosByCPF(fullText)
   const resumo = parseResumoGeral(fullText)
 
   return {
-    mes,
-    ano,
-    empresa,
-    cnpj,
-    funcionarios,
+    mes, ano, empresa, cnpj, funcionarios,
     totalColaboradores: resumo.totalColaboradores || funcionarios.length,
     totalProventos: resumo.totalProventos || funcionarios.reduce((s, f) => s + f.totalProventos, 0),
     totalDescontos: resumo.totalDescontos || funcionarios.reduce((s, f) => s + f.totalDescontos, 0),
     totalLiquido: resumo.totalLiquido || funcionarios.reduce((s, f) => s + f.liquido, 0),
-    gps: resumo.gps,
-    fgts: resumo.fgts,
-    irrf: resumo.irrf,
-    sindicato: resumo.sindicato,
-    totalImpostos: resumo.totalImpostos,
+    gps: resumo.gps, fgts: resumo.fgts, irrf: resumo.irrf,
+    sindicato: resumo.sindicato, totalImpostos: resumo.totalImpostos,
   }
 }
 
-function parseFuncionarios(text: string): FolhaFuncionario[] {
+function parseFuncionariosByCPF(text: string): FolhaFuncionario[] {
   const funcionarios: FolhaFuncionario[] = []
 
-  // Padroes para identificar cada funcionario
-  // Formato: "NN NOME ... Admissão em DD/MM/YYYY Salário base N.NNN,NN Horas mensais: NNN,NN"
-  // CPF: NNN.NNN.NNN-NN ... Função: NOME
+  // Encontrar todas as ocorrencias de CPF no texto
+  const cpfPattern = /CPF:\s*(\d{3}\.\d{3}\.\d{3}-\d{2})/g
+  const cpfMatches: { cpf: string; index: number }[] = []
+  let match: RegExpExecArray | null
+  while ((match = cpfPattern.exec(text)) !== null) {
+    cpfMatches.push({ cpf: match[1], index: match.index })
+  }
 
-  // Dividir por blocos de funcionario (cada um comeca com numero + nome + admissao)
-  const blocks = text.split(/(?=\d{1,6}\s+[A-Z]{2,}[\w\s]+(?:Admissão|Admissao)\s+em\s+\d{2}\/\d{2}\/\d{4})/)
+  // Para cada CPF, extrair o bloco do funcionario
+  for (let i = 0; i < cpfMatches.length; i++) {
+    const cpfInfo = cpfMatches[i]
 
-  for (const block of blocks) {
-    if (block.trim().length < 50) continue
-    if (!block.match(/CPF:/)) continue
+    // O bloco vai do texto antes do CPF ate o proximo CPF (ou resumo geral)
+    // Procurar o inicio do bloco: numero + nome antes deste CPF
+    const textBefore = text.substring(Math.max(0, cpfInfo.index - 500), cpfInfo.index)
+    const textAfter = text.substring(cpfInfo.index, i < cpfMatches.length - 1 ? cpfMatches[i + 1].index : cpfInfo.index + 2000)
+    const block = textBefore + textAfter
+
+    // Pular se for da secao de resumo
+    if (block.includes('RESUMO GERAL') || block.includes('Analítico GPS')) continue
 
     try {
-      const func = parseFuncionarioBlock(block)
-      if (func && func.cpf) {
-        funcionarios.push(func)
-      }
+      const func = parseSingleFuncionario(block, cpfInfo.cpf)
+      if (func) funcionarios.push(func)
     } catch {
-      // Skip blocks that fail to parse
+      // Skip
     }
   }
 
   return funcionarios
 }
 
-function parseFuncionarioBlock(block: string): FolhaFuncionario | null {
-  // Extrair nome - fica entre o numero inicial e "Admissão"
-  const nomeMatch = block.match(/\d{1,6}\s+([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][A-ZÀÁÂÃÉÊÍÓÔÕÚÇa-zàáâãéêíóôõúç\s]+?)\s+\d+\s+\d+\s+(?:Admissão|Admissao)/)
-  if (!nomeMatch) {
-    // Tentar formato alternativo (nome pode ter quebra de linha)
-    const nomeAlt = block.match(/\d{1,6}\s+([\w\s]+?)(?:\d+\s+\d+\s+)?(?:Admissão|Admissao)/)
-    if (!nomeAlt) return null
+function parseSingleFuncionario(block: string, cpf: string): FolhaFuncionario | null {
+  // Nome: procurar padrao "NUMERO NOME_MAIUSCULO" antes do CPF
+  // O nome esta entre um numero (codigo) e "Admissão" ou o CPF
+  let nome = ''
+
+  // Tentar: texto entre "Admissão em DD/MM/YYYY" e "Salário base"
+  // O nome vem ANTES de "Admissão"
+  const admMatch = block.match(/(?:Admiss[ãa]o)\s+em\s+(\d{2}\/\d{2}\/\d{4})/)
+  if (admMatch) {
+    // Pegar texto antes de "Admissão" - o nome esta la
+    const beforeAdm = block.substring(0, block.indexOf(admMatch[0]))
+    // Nome: ultima sequencia de palavras maiusculas antes da admissao
+    // Formato tipico: "42 DEYSE BARBOSA DE JESUS 5 5"
+    const nomeMatch = beforeAdm.match(/\d{1,6}\s+([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][A-ZÀÁÂÃÉÊÍÓÔÕÚÇa-zàáâãéêíóôõúç\s.]+?)(?:\s+\d+\s+\d+\s*$)/)
+    if (nomeMatch) {
+      nome = nomeMatch[1].trim()
+    } else {
+      // Fallback: pegar tudo entre o numero e os dois digitos SF/IR
+      const nomeFb = beforeAdm.match(/\d{1,6}\s+([\w\sÀ-ÿ.]+?)(?:\s+\d+\s+\d+\s*$|\s*$)/)
+      if (nomeFb) nome = nomeFb[1].trim()
+    }
   }
 
-  // CPF
-  const cpfMatch = block.match(/CPF:\s*([\d.-]+)/)
-  if (!cpfMatch) return null
-  const cpf = cpfMatch[1]
+  // Se nao achou nome, tentar pelo Função
+  if (!nome) {
+    const funcaoLine = block.match(/Fun[çc][ãa]o:\s*([A-ZÀ-Ú\s]+)/)
+    // Pegar texto antes do CPF
+    const cpfIdx = block.indexOf('CPF:')
+    if (cpfIdx > 0) {
+      const before = block.substring(Math.max(0, cpfIdx - 300), cpfIdx)
+      const lines = before.split(/\s{3,}|\n/).filter(l => l.trim().length > 3)
+      // O nome geralmente esta nas ultimas linhas antes do CPF
+      for (let j = lines.length - 1; j >= 0; j--) {
+        const line = lines[j].trim()
+        if (/^[A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][A-ZÀÁÂÃÉÊÍÓÔÕÚÇa-zàáâãéêíóôõúç\s.]+$/.test(line) && line.length > 5) {
+          nome = line
+          break
+        }
+      }
+    }
+    if (!nome && funcaoLine) nome = `Func. ${funcaoLine[1].trim()}`
+  }
 
   // Funcao
-  const funcaoMatch = block.match(/Função:\s*([A-ZÀ-Ú\s]+?)(?:\n|$|Férias)/)
+  const funcaoMatch = block.match(/Fun[çc][ãa]o:\s*([A-ZÀ-Ú\s]+?)(?:\s{2}|\n|$|F[ée]rias)/)
   const funcao = funcaoMatch ? funcaoMatch[1].trim() : ''
 
-  // Admissao
-  const admMatch = block.match(/(?:Admissão|Admissao)\s+em\s+(\d{2}\/\d{2}\/\d{4})/)
   const dataAdmissao = admMatch ? parseBRDate(admMatch[1]) : ''
 
-  // Salario base
-  const salBaseMatch = block.match(/Salário base\s+([\d.,]+)/)
+  const salBaseMatch = block.match(/Sal[áa]rio base\s+([\d.,]+)/)
   const salarioBase = salBaseMatch ? parseBRNumber(salBaseMatch[1]) : 0
 
-  // Horas mensais
   const horasMatch = block.match(/Horas mensais:\s*([\d.,]+)/)
   const horasMensais = horasMatch ? parseBRNumber(horasMatch[1]) : 0
 
-  // Nome - extrair melhor
-  let nome = ''
-  const nomeClean = block.match(/\d{1,6}\s+([\w\sÀ-ÿ]+?)(?:\s+\d+\s+\d+\s+(?:Admissão|Admissao))/)
-  if (nomeClean) {
-    nome = nomeClean[1].trim()
-  }
-
-  // Total proventos e descontos
+  // Totais
   const proventosMatch = block.match(/Total de proventos\s*-?\s*>?\s*([\d.,]+)/)
   const totalProventos = proventosMatch ? parseBRNumber(proventosMatch[1]) : 0
 
   const descontosMatch = block.match(/Total de descontos\s*-?\s*>?\s*([\d.,]+)/)
   const totalDescontos = descontosMatch ? parseBRNumber(descontosMatch[1]) : 0
 
-  const liquidoMatch = block.match(/Líquido\s*-?\s*>?\s*([\d.,]+)/)
+  const liquidoMatch = block.match(/L[íi]quido\s*-?\s*>?\s*([\d.,]+)/)
   const liquido = liquidoMatch ? parseBRNumber(liquidoMatch[1]) : 0
 
-  // INSS, FGTS, IRRF da linha "Folha" no rodape do bloco
+  // Se nao tem proventos, provavelmente nao eh um funcionario valido
+  if (totalProventos === 0 && salarioBase === 0) return null
+
+  // INSS, FGTS
   const baseINSSMatch = block.match(/Folha\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/)
   let baseINSS = 0, valorINSS = 0, valorFGTS = 0, baseIRRF = 0
   if (baseINSSMatch) {
     baseINSS = parseBRNumber(baseINSSMatch[1])
     valorINSS = parseBRNumber(baseINSSMatch[2])
-    // FGTS valor pode estar na posicao 3 ou ser calculado
     valorFGTS = parseBRNumber(baseINSSMatch[3])
     baseIRRF = parseBRNumber(baseINSSMatch[4])
   }
 
-  // Proventos detalhados
-  const horasExtras60 = extractValor(block, /Horas extras 60%.*?([\d.,]+)\s*$/m)
-  const horasExtras100 = extractValor(block, /Horas extras 100%.*?([\d.,]+)\s*$/m)
-  const adicionalNoturno = extractValor(block, /Adicional noturno.*?([\d.,]+)\s*$/m)
+  // Detalhes
+  const horasExtras60 = extractValor(block, /Horas extras 60%.*?([\d.,]+)\s*(?:9|$)/m)
+  const horasExtras100 = extractValor(block, /Horas extras 100%.*?([\d.,]+)\s*(?:5|$)/m)
+  const adicionalNoturno = extractValor(block, /Adicional noturno.*?([\d.,]+)\s/m)
   const adicionalFuncao = extractValor(block, /Adicional de Fun.*?([\d.,]+)\s/m)
-  const trienio = extractValor(block, /Triênio.*?([\d.,]+)\s*$/m) || extractValor(block, /Tri.nio.*?([\d.,]+)\s*$/m)
-  const dsrExtras = extractValor(block, /DSR horas extras.*?([\d.,]+)\s*$/m)
+  const trienio = extractValor(block, /Tri[êe]nio.*?([\d.,]+)\s*$/m)
+  const dsrExtras = extractValor(block, /DSR horas extras.*?([\d.,]+)\s/m)
   const quebraCaixa = extractValor(block, /Quebra de caixa\s+([\d.,]+)/m)
-
-  // Descontos detalhados
-  const contribuicaoNegocial = extractValor(block, /Contribuição Negocial\s+([\d.,]+)/)
+  const contribuicaoNegocial = extractValor(block, /Contribui[çc][ãa]o Negocial\s+([\d.,]+)/)
   const adiantamento = extractValor(block, /Adiantamento.*?([\d.,]+)/)
-  const inssFuncionario = extractValor(block, /INSS\s+\d+[,.]00\s+([\d.,]+)/) || extractValor(block, /INSS pro-labore\s+\d+[,.]00\s+([\d.,]+)/)
+  const inssFuncionario = extractValor(block, /INSS\s+[\d,.]+\s+([\d.,]+)/)
+  const faltasDias = extractValor(block, /Faltas n[ãa]o justificadas.*?([\d.,]+)\s*$/)
+  const faltasHoras = extractValor(block, /Faltas Atraso Horas\s+[\d:]+\s+([\d.,]+)/)
+  const irrfFuncionario = extractValor(block, /IR f[ée]rias recolhido.*?([\d.,]+)/)
 
-  // Faltas
-  const faltasDiasMatch = block.match(/Faltas não justificadas dias\s+([\d.,]+)\s+([\d.,]+)/)
-  const faltasDias = faltasDiasMatch ? parseBRNumber(faltasDiasMatch[2]) : 0
-  const faltasHorasMatch = block.match(/Faltas Atraso Horas\s+[\d:]+\s+([\d.,]+)/)
-  const faltasHoras = faltasHorasMatch ? parseBRNumber(faltasHorasMatch[1]) : 0
-
-  const irrfFuncionario = extractValor(block, /IR férias recolhido.*?([\d.,]+)/) // Simplified
-
-  // Ferias
-  const temFerias = block.includes('Demonstrativo de férias') || block.includes('Período de gozo')
+  const temFerias = block.includes('Demonstrativo de f') || block.includes('Per\u00edodo de gozo')
   let feriasBruto = 0, feriasINSS = 0, feriasIRRF = 0
   if (temFerias) {
-    feriasBruto = extractValor(block, /Demonstrativo de férias.*?([\d.,]+)\s/m)
-      + extractValor(block, /Demonstrativo férias triênio.*?([\d.,]+)\s/m)
-      + extractValor(block, /Demonstrativo 1\/3 férias.*?([\d.,]+)\s/m)
-    feriasINSS = extractValor(block, /INSS demonstrativo férias.*?([\d.,]+)\s/m)
-    feriasIRRF = extractValor(block, /IR férias recolhido.*?([\d.,]+)\s/m)
+    feriasBruto = extractValor(block, /Demonstrativo de f[ée]rias.*?([\d.,]+)\s/m)
+      + extractValor(block, /Demonstrativo f[ée]rias tri[êe]nio.*?([\d.,]+)\s/m)
+      + extractValor(block, /Demonstrativo 1\/3 f[ée]rias.*?([\d.,]+)\s/m)
+    feriasINSS = extractValor(block, /INSS demonstrativo f[ée]rias.*?([\d.,]+)\s/m)
+    feriasIRRF = extractValor(block, /IR f[ée]rias recolhido.*?([\d.,]+)\s/m)
   }
 
   return {
     nome: formatNome(nome),
-    cpf,
-    funcao,
-    dataAdmissao,
-    salarioBase,
-    horasMensais,
-    totalProventos,
-    totalDescontos,
-    liquido,
-    baseINSS,
-    valorINSS,
-    valorFGTS,
-    baseIRRF,
-    horasExtras60,
-    horasExtras100,
-    adicionalNoturno,
-    adicionalFuncao,
-    trienio,
-    dsrExtras,
-    quebraCaixa,
-    contribuicaoNegocial,
-    faltasDias,
-    faltasHoras,
-    adiantamento,
-    inssFuncionario,
-    irrfFuncionario,
-    temFerias,
-    feriasBruto,
-    feriasINSS,
-    feriasIRRF,
+    cpf, funcao, dataAdmissao, salarioBase, horasMensais,
+    totalProventos, totalDescontos, liquido,
+    baseINSS, valorINSS, valorFGTS, baseIRRF,
+    horasExtras60, horasExtras100, adicionalNoturno, adicionalFuncao,
+    trienio, dsrExtras, quebraCaixa,
+    contribuicaoNegocial, faltasDias, faltasHoras, adiantamento,
+    inssFuncionario, irrfFuncionario,
+    temFerias, feriasBruto, feriasINSS, feriasIRRF,
   }
 }
 
@@ -299,6 +283,7 @@ function extractValor(text: string, pattern: RegExp): number {
 }
 
 function formatNome(nome: string): string {
+  if (!nome || nome.trim().length === 0) return ''
   return nome
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase())
@@ -311,45 +296,32 @@ function parseResumoGeral(text: string): {
   totalProventos: number
   totalDescontos: number
   totalLiquido: number
-  gps: number
-  fgts: number
-  irrf: number
-  sindicato: number
-  totalImpostos: number
+  gps: number; fgts: number; irrf: number; sindicato: number; totalImpostos: number
 } {
-  // Quantidade de colaboradores
   const qtdMatch = text.match(/Quantidade\s+(\d+)/)
   const totalColaboradores = qtdMatch ? parseInt(qtdMatch[1]) : 0
 
-  // Proventos total
   const provMatch = text.match(/Proventos\s+([\d.,]+)\s/)
   const totalProventos = provMatch ? parseBRNumber(provMatch[1]) : 0
 
-  // Descontos total
   const descMatch = text.match(/Descontos\s+([\d.,]+)\s/)
   const totalDescontos = descMatch ? parseBRNumber(descMatch[1]) : 0
 
-  // Liquido
-  const liqMatch = text.match(/Líquido\s+([\d.,]+)\s/)
+  const liqMatch = text.match(/L[íi]quido\s+([\d.,]+)\s/)
   const totalLiquido = liqMatch ? parseBRNumber(liqMatch[1]) : 0
 
-  // GPS (INSS empresa)
   const gpsMatch = text.match(/GPS\s*-?\s*>?\s*([\d.,]+)\s*\(Bruto\)/)
   const gps = gpsMatch ? parseBRNumber(gpsMatch[1]) : 0
 
-  // FGTS
   const fgtsMatch = text.match(/GFD\s+([\d.,]+)/)
   const fgts = fgtsMatch ? parseBRNumber(fgtsMatch[1]) : 0
 
-  // IRRF
-  const irrfMatch = text.match(/Total R\$\s+([\d.,]+)\s*\n?\s*Mês/)
+  const irrfMatch = text.match(/Total R\$\s+([\d.,]+)\s*\n?\s*M[eê]s/)
   const irrf = irrfMatch ? parseBRNumber(irrfMatch[1]) : 0
 
-  // Sindicato
   const sindMatch = text.match(/GRCS[\s\S]*?Total R\$\s+([\d.,]+)/)
   const sindicato = sindMatch ? parseBRNumber(sindMatch[1]) : 0
 
-  // Total impostos
   const totImpMatch = text.match(/Total de impostos R\$\s+([\d.,]+)/)
   const totalImpostos = totImpMatch ? parseBRNumber(totImpMatch[1]) : 0
 
