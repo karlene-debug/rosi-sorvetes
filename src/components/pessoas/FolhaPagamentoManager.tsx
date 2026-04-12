@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Loader2, Upload, CheckCircle2, AlertCircle, 
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario } from './PessoasSection'
-import { parseFolhaPDF, type FolhaResumo } from '@/lib/folhaParser'
+import { parseFolhaPDF, type FolhaResumo, type EventoFolha } from '@/lib/folhaParser'
 
 interface FolhaPagamentoManagerProps {
   funcionarios: Funcionario[]
@@ -215,14 +215,37 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
             desconto_faltas: funcPDF.faltasDias + funcPDF.faltasHoras,
             desconto_sindicato: funcPDF.contribuicaoNegocial,
             desconto_outros: Math.max(0, funcPDF.totalDescontos - funcPDF.inssFuncionario - funcPDF.irrfFuncionario - funcPDF.adiantamento - (funcPDF.faltasDias + funcPDF.faltasHoras) - funcPDF.contribuicaoNegocial),
+            codigo_func: funcPDF.codigoFunc || null,
             observacao: `Importado do espelho ${MESES[resumo.mes - 1]}/${resumo.ano}`,
             atualizado_em: new Date().toISOString(),
           }
 
-          // Upsert (insere ou atualiza se ja existe)
-          await supabase
+          // Upsert e obter ID para salvar eventos
+          const { data: folhaRow } = await supabase
             .from('folha_pagamento')
             .upsert(row, { onConflict: 'funcionario_id,mes,ano' })
+            .select('id')
+            .single()
+
+          // Salvar eventos detalhados na tabela eventos_folha
+          if (folhaRow?.id && funcPDF.eventos && funcPDF.eventos.length > 0) {
+            // Limpar eventos antigos (reimportação limpa)
+            await supabase
+              .from('eventos_folha')
+              .delete()
+              .eq('folha_pagamento_id', folhaRow.id)
+
+            // Inserir novos eventos
+            const eventosRows = funcPDF.eventos.map((evt: EventoFolha) => ({
+              folha_pagamento_id: folhaRow.id,
+              codigo: evt.codigo,
+              descricao: evt.descricao,
+              tipo: evt.tipo,
+              referencia: evt.referencia || null,
+              valor: evt.valor,
+            }))
+            await supabase.from('eventos_folha').insert(eventosRows)
+          }
 
           matched++
         } else {
