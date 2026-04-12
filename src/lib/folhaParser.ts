@@ -284,7 +284,9 @@ function extractValor(text: string, pattern: RegExp): number {
 
 function formatNome(nome: string): string {
   if (!nome || nome.trim().length === 0) return ''
-  return nome
+  // Remover codigo numerico do inicio (ex: "70 Josina..." -> "Josina...")
+  const semCodigo = nome.replace(/^\d+\s+/, '')
+  return semCodigo
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase())
     .replace(/\s(De|Da|Do|Dos|Das|E)\s/g, (_, p) => ` ${p.toLowerCase()} `)
