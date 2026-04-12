@@ -189,13 +189,37 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
         }
       }
 
-      // Atualizar mes/ano para o do PDF e recarregar
+      // Atualizar mes/ano para o do PDF
       setMes(resumo.mes)
       setAno(resumo.ano)
       setImportResult({ matched, unmatched, divergencias, resumo })
 
-      // Recarregar dados
-      setTimeout(() => loadFolha(), 500)
+      // Recarregar dados do mes importado diretamente
+      try {
+        const { data: reloadData } = await supabase
+          .from('folha_pagamento')
+          .select('*, funcionarios(nome, cargos(nome))')
+          .eq('mes', resumo.mes)
+          .eq('ano', resumo.ano)
+        if (reloadData && reloadData.length > 0) {
+          setFolhaItems(reloadData.map((r: Record<string, unknown>) => {
+            const func = r.funcionarios as Record<string, unknown> | null
+            const cargo = func?.cargos as Record<string, string> | null
+            return {
+              funcionarioId: r.funcionario_id as string,
+              nome: (func?.nome as string) || '-',
+              cargoNome: cargo?.nome || undefined,
+              salarioBruto: Number(r.salario_bruto),
+              descontos: Number(r.descontos),
+              liquido: Number(r.salario_bruto) - Number(r.descontos),
+              encargosEmpresa: Number(r.encargos_empresa),
+              horasExtras: Number(r.horas_extras),
+              custoTotal: Number(r.custo_total),
+            }
+          }))
+          setTemDados(true)
+        }
+      } catch { /* tabela pode nao existir */ }
     } catch (err) {
       setMsg(err instanceof Error ? err.message : 'Erro ao processar o PDF.')
     } finally {

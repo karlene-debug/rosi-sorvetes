@@ -408,6 +408,16 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
     setFerias(prev => prev.map(f => f.id === id ? { ...f, status: 'concluida' } : f))
   }
 
+  const handleDeleteFerias = async (id: string) => {
+    await supabase.from('ferias').delete().eq('id', id)
+    setFerias(prev => prev.filter(f => f.id !== id))
+  }
+
+  const handleDeleteOcorrencia = async (id: string) => {
+    await supabase.from('ocorrencias').delete().eq('id', id)
+    setOcorrencias(prev => prev.filter(o => o.id !== id))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -480,6 +490,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           funcionarios={funcionarios}
           onAdd={handleAddOcorrencia}
           onUpdate={handleUpdateOcorrencia}
+          onDelete={handleDeleteOcorrencia}
         />
       )}
       {activeTab === 'ferias' && (
@@ -490,6 +501,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           onConfirmar={handleConfirmarFerias}
           onConcluir={handleConcluirFerias}
           onEditar={handleEditarFerias}
+          onDelete={handleDeleteFerias}
         />
       )}
     </div>
