@@ -233,16 +233,6 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
               <ChevronRight size={20} />
             </button>
           </div>
-
-          {/* Botao importar */}
-          <label className={cn(
-            'flex items-center gap-2 px-5 py-2.5 rounded-xl cursor-pointer text-sm font-medium shadow-sm',
-            importing ? 'bg-gray-100 text-gray-400' : 'bg-[#E91E63] text-white hover:bg-[#C2185B]'
-          )}>
-            {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-            {importing ? 'Processando...' : 'Importar Espelho da Folha (PDF)'}
-            <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importing} />
-          </label>
         </div>
         {msg && (
           <p className={cn('text-xs mt-2', msg.includes('Erro') ? 'text-red-500' : 'text-green-600')}>{msg}</p>
