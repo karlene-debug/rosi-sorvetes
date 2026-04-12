@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload } from 'lucide-react'
+import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Cargo, Funcionario, Beneficio, PendenciaRH, MotivoDesligamento } from './PessoasSection'
 import { parseTRCTPDF } from '@/lib/trctParser'
@@ -74,9 +74,10 @@ interface FuncionarioManagerProps {
   }) => Promise<void>
   onDescartarPendencia?: (id: string) => Promise<void>
   onImportTRCT?: (funcionarioId: string, trctData: Record<string, unknown>) => Promise<void>
+  onDelete?: (id: string) => Promise<void>
 }
 
-export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias = [], motivosDesligamento = [], onAdd, onUpdate, onDemitir, onDescartarPendencia, onImportTRCT }: FuncionarioManagerProps) {
+export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias = [], motivosDesligamento = [], onAdd, onUpdate, onDemitir, onDescartarPendencia, onImportTRCT, onDelete }: FuncionarioManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -626,6 +627,12 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
                             className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium hover:bg-amber-200"
                             title="Importar TRCT">
                             TRCT
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button onClick={() => { if (confirm(`Excluir "${f.nome}" permanentemente? Esta ação não pode ser desfeita.`)) onDelete(f.id) }}
+                            className="p-1.5 text-gray-300 hover:text-red-600 transition-colors" title="Excluir funcionário">
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
