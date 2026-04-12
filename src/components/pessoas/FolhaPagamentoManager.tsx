@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Save, Loader2, Calculator, Info } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { ChevronLeft, ChevronRight, Save, Loader2, Calculator, Info, Upload, CheckCircle2, AlertCircle, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario } from './PessoasSection'
+import { parseFolhaPDF, type FolhaResumo } from '@/lib/folhaParser'
 
 interface FolhaPagamentoManagerProps {
   funcionarios: Funcionario[]
@@ -30,6 +31,11 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
+// Normalizar CPF para comparacao (remove pontos e tracos)
+function normalizeCPF(cpf: string): string {
+  return (cpf || '').replace(/[.\-/\s]/g, '')
+}
+
 export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: FolhaPagamentoManagerProps) {
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth() + 1)
@@ -38,6 +44,16 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+
+  // Import state
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{
+    matched: number
+    unmatched: { nome: string; cpf: string; funcao: string; salario: number }[]
+    divergencias: { funcionarioId: string; nomeSistema: string; nomeContabilidade: string; cpf: string }[]
+    resumo: FolhaResumo
+  } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const funcsAtivos = useMemo(() => {
     let f = funcionarios.filter(f => f.status === 'ativo')
@@ -79,33 +95,23 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
             changed: false,
           }
         }
-        // Pre-fill com salario atual e encargos estimados
-        const salario = f.salario || 0
-        const encargos = f.tipoContrato === 'clt' ? Math.round(salario * 0.4744 * 100) / 100 : 0
-        return {
-          funcionarioId: f.id,
-          salarioBruto: salario,
-          descontos: 0,
-          valeTransporte: 0,
-          valeRefeicao: 0,
-          outrosBeneficios: 0,
-          encargosEmpresa: encargos,
-          horasExtras: 0,
-          custoTotal: salario + encargos,
-          observacao: '',
-          changed: false,
-        }
-      })
-
-      setItems(newItems)
-    } catch {
-      // Tabela pode nao existir ainda
-      const newItems: FolhaItem[] = funcsAtivos.map(f => {
         const salario = f.salario || 0
         const encargos = f.tipoContrato === 'clt' ? Math.round(salario * 0.4744 * 100) / 100 : 0
         return {
           funcionarioId: f.id,
           salarioBruto: salario, descontos: 0, valeTransporte: 0, valeRefeicao: 0,
+          outrosBeneficios: 0, encargosEmpresa: encargos, horasExtras: 0,
+          custoTotal: salario + encargos, observacao: '', changed: false,
+        }
+      })
+
+      setItems(newItems)
+    } catch {
+      const newItems: FolhaItem[] = funcsAtivos.map(f => {
+        const salario = f.salario || 0
+        const encargos = f.tipoContrato === 'clt' ? Math.round(salario * 0.4744 * 100) / 100 : 0
+        return {
+          funcionarioId: f.id, salarioBruto: salario, descontos: 0, valeTransporte: 0, valeRefeicao: 0,
           outrosBeneficios: 0, encargosEmpresa: encargos, horasExtras: 0,
           custoTotal: salario + encargos, observacao: '', changed: false,
         }
@@ -122,7 +128,6 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
     setItems(prev => {
       const updated = [...prev]
       const item = { ...updated[idx], [field]: value, changed: true }
-      // Recalcular custo total
       item.custoTotal = item.salarioBruto - item.descontos + item.valeTransporte + item.valeRefeicao
         + item.outrosBeneficios + item.encargosEmpresa + item.horasExtras
       updated[idx] = item
@@ -140,6 +145,98 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
         + updated.outrosBeneficios + updated.encargosEmpresa + updated.horasExtras
       return updated
     }))
+  }
+
+  // === IMPORTACAO DO ESPELHO DA FOLHA ===
+  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.type !== 'application/pdf') {
+      setSavedMsg('Selecione um arquivo PDF do espelho da folha.')
+      return
+    }
+
+    setImporting(true)
+    setSavedMsg('')
+    setImportResult(null)
+
+    try {
+      const resumo = await parseFolhaPDF(file)
+
+      // Atualizar mes/ano para o mes do PDF
+      setMes(resumo.mes)
+      setAno(resumo.ano)
+
+      // Cruzar funcionarios do PDF com os do sistema por CPF
+      // Tambem buscar em TODOS os funcionarios (nao so ativos da unidade) pra nao perder match
+      let matched = 0
+      const unmatched: { nome: string; cpf: string; funcao: string; salario: number }[] = []
+      const divergencias: { funcionarioId: string; nomeSistema: string; nomeContabilidade: string; cpf: string }[] = []
+
+      const updatedItems = [...items]
+
+      for (const funcPDF of resumo.funcionarios) {
+        const cpfNorm = normalizeCPF(funcPDF.cpf)
+
+        // Primeiro tenta achar nos ativos da unidade
+        let funcSistema = funcsAtivos.find(f => normalizeCPF(f.cpf || '') === cpfNorm)
+        // Se nao achou, tenta em todos os funcionarios
+        if (!funcSistema) {
+          funcSistema = funcionarios.find(f => normalizeCPF(f.cpf || '') === cpfNorm)
+        }
+
+        if (funcSistema) {
+          // Verificar divergencia de nome
+          const nomeSistema = funcSistema.nome.trim().toLowerCase()
+          const nomeContab = funcPDF.nome.trim().toLowerCase()
+          if (nomeSistema !== nomeContab && !nomeSistema.includes(nomeContab) && !nomeContab.includes(nomeSistema)) {
+            divergencias.push({
+              funcionarioId: funcSistema.id,
+              nomeSistema: funcSistema.nome,
+              nomeContabilidade: funcPDF.nome,
+              cpf: funcPDF.cpf,
+            })
+          }
+
+          const idx = updatedItems.findIndex(i => i.funcionarioId === funcSistema!.id)
+          if (idx >= 0) {
+            const fgtsFunc = funcPDF.valorFGTS || 0
+            const gpsRateio = resumo.gps > 0 && resumo.totalProventos > 0
+              ? (funcPDF.totalProventos / resumo.totalProventos) * resumo.gps
+              : 0
+            const encargosEmpresa = Math.round((fgtsFunc + gpsRateio) * 100) / 100
+
+            const horasExtras = funcPDF.horasExtras60 + funcPDF.horasExtras100 + funcPDF.dsrExtras
+              + funcPDF.adicionalNoturno
+
+            const salarioBruto = funcPDF.totalProventos
+            const descontos = funcPDF.totalDescontos
+
+            updatedItems[idx] = {
+              ...updatedItems[idx],
+              salarioBruto,
+              descontos,
+              encargosEmpresa,
+              horasExtras,
+              custoTotal: salarioBruto - descontos + encargosEmpresa,
+              observacao: `Importado do espelho da folha ${MESES[resumo.mes - 1]}/${resumo.ano}`,
+              changed: true,
+            }
+            matched++
+          }
+        } else {
+          unmatched.push({ nome: funcPDF.nome, cpf: funcPDF.cpf, funcao: funcPDF.funcao, salario: funcPDF.salarioBase })
+        }
+      }
+
+      setItems(updatedItems)
+      setImportResult({ matched, unmatched, divergencias, resumo })
+    } catch (err) {
+      setSavedMsg(err instanceof Error ? err.message : 'Erro ao processar o PDF.')
+    } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   const handleSave = async () => {
@@ -172,6 +269,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
       }
       setItems([...items])
       setSavedMsg(`${changedItems.length} registro(s) salvo(s)`)
+      setImportResult(null)
       setTimeout(() => setSavedMsg(''), 3000)
     } catch {
       setSavedMsg('Erro ao salvar. Verifique se a migration v9 foi executada.')
@@ -206,7 +304,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
     <div className="space-y-4">
       {/* Header com navegacao */}
       <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <button onClick={() => navegarMes(-1)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-600">
               <ChevronLeft size={20} />
@@ -220,7 +318,16 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Botao importar PDF */}
+            <label className={cn(
+              'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg cursor-pointer',
+              importing ? 'bg-gray-100 text-gray-400' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+            )}>
+              {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              {importing ? 'Processando...' : 'Importar Espelho da Folha'}
+              <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importing} />
+            </label>
             <button onClick={preencherEncargos}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100">
               <Calculator size={14} /> Calcular encargos
@@ -239,12 +346,139 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada }: Folh
         )}
       </div>
 
+      {/* Resultado da importacao */}
+      {importResult && (
+        <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-blue-500" />
+            <span className="text-sm font-semibold text-gray-800">
+              Espelho importado: {MESES[importResult.resumo.mes - 1]}/{importResult.resumo.ano}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-green-50 rounded-lg p-2">
+              <p className="text-lg font-bold text-green-700">{importResult.matched}</p>
+              <p className="text-xs text-green-600">Funcionarios encontrados</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-2">
+              <p className="text-lg font-bold text-gray-700">{importResult.resumo.totalColaboradores}</p>
+              <p className="text-xs text-gray-500">Total no espelho</p>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-2">
+              <p className="text-lg font-bold text-blue-700">{formatCurrency(importResult.resumo.totalProventos)}</p>
+              <p className="text-xs text-blue-600">Total proventos</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-2">
+              <p className="text-lg font-bold text-purple-700">{formatCurrency(importResult.resumo.totalImpostos)}</p>
+              <p className="text-xs text-purple-600">Total impostos empresa</p>
+            </div>
+          </div>
+
+          {/* Divergencias de nome */}
+          {importResult.divergencias.length > 0 && (
+            <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle size={14} className="text-blue-500" />
+                <span className="text-xs font-medium text-blue-700">
+                  {importResult.divergencias.length} nome(s) diferente(s) entre sistema e contabilidade:
+                </span>
+              </div>
+              {importResult.divergencias.map(d => (
+                <div key={d.cpf} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white rounded-lg p-2 border border-blue-100">
+                  <div className="flex-1 text-xs">
+                    <p className="text-gray-500">CPF: {d.cpf}</p>
+                    <p>Sistema: <strong className="text-gray-800">{d.nomeSistema}</strong></p>
+                    <p>Contabilidade: <strong className="text-blue-700">{d.nomeContabilidade}</strong></p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={async () => {
+                        await supabase.from('funcionarios').update({ nome: d.nomeContabilidade }).eq('id', d.funcionarioId)
+                        setImportResult(prev => prev ? {
+                          ...prev,
+                          divergencias: prev.divergencias.filter(x => x.cpf !== d.cpf)
+                        } : null)
+                        setSavedMsg(`Nome atualizado para "${d.nomeContabilidade}"`)
+                        setTimeout(() => setSavedMsg(''), 3000)
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Usar contabilidade
+                    </button>
+                    <button
+                      onClick={() => {
+                        setImportResult(prev => prev ? {
+                          ...prev,
+                          divergencias: prev.divergencias.filter(x => x.cpf !== d.cpf)
+                        } : null)
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                    >
+                      Manter sistema
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Funcionarios nao encontrados */}
+          {importResult.unmatched.length > 0 && (
+            <div className="bg-amber-50 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle size={14} className="text-amber-500" />
+                <span className="text-xs font-medium text-amber-700">
+                  {importResult.unmatched.length} funcionario(s) da contabilidade nao encontrado(s) no sistema:
+                </span>
+              </div>
+              {importResult.unmatched.map(u => (
+                <div key={u.cpf} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white rounded-lg p-2 border border-amber-100">
+                  <div className="flex-1 text-xs">
+                    <p><strong className="text-gray-800">{u.nome}</strong> — {u.funcao}</p>
+                    <p className="text-gray-500">CPF: {u.cpf} | Salario: {formatCurrency(u.salario)}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { error } = await supabase.from('funcionarios').insert({
+                        nome: u.nome, cpf: u.cpf, salario: u.salario,
+                        tipo_contrato: 'clt', status: 'ativo',
+                      })
+                      if (!error) {
+                        setImportResult(prev => prev ? {
+                          ...prev,
+                          unmatched: prev.unmatched.filter(x => x.cpf !== u.cpf)
+                        } : null)
+                        setSavedMsg(`"${u.nome}" cadastrado! Reimporte o PDF para preencher os dados.`)
+                        setTimeout(() => setSavedMsg(''), 4000)
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 whitespace-nowrap"
+                  >
+                    Cadastrar funcionario
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {importResult.matched > 0 && (
+            <div className="flex items-center gap-2 bg-green-50 rounded-lg p-3">
+              <CheckCircle2 size={14} className="text-green-500" />
+              <span className="text-xs text-green-700">
+                Dados importados com sucesso! Confira os valores abaixo e clique em <strong>Salvar</strong>.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Info */}
       <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-4">
         <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
         <p className="text-xs text-blue-700">
-          Lance o custo real de cada funcionario neste mes. Os valores sao pre-preenchidos com o salario atual e encargos estimados (~47% para CLT).
-          Ajuste conforme o holerite/guias reais. O botao "Calcular encargos" recalcula automaticamente para todos os CLTs.
+          Importe o PDF do espelho da folha (contabilidade) para preencher automaticamente, ou lance manualmente.
+          Os encargos da empresa (INSS patronal + FGTS) sao rateados proporcionalmente entre os funcionarios.
         </p>
       </div>
 
