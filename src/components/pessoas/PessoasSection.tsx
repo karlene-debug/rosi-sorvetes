@@ -53,7 +53,20 @@ export interface Funcionario {
   causaAfastamento?: string
   codAfastamento?: string
   trctStatus?: string // null, pendente, importado
+  trctSaldoSalario?: number
+  trct13Proporcional?: number
+  trctFeriasProporcionais?: number
+  trctFeriasVencidas?: number
+  trctTercoFerias?: number
+  trctAvisoIndenizado?: number
+  trctMulta477?: number
+  trctMulta479?: number
+  trctHorasExtras?: number
   trctTotalBruto?: number
+  trctInss?: number
+  trctIrrf?: number
+  trctAdiantamento?: number
+  trctPensao?: number
   trctTotalDeducoes?: number
   trctValorLiquido?: number
 }
@@ -204,6 +217,25 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         valorRescisao: f.valor_rescisao ? Number(f.valor_rescisao) : undefined,
         saldoFgts: f.saldo_fgts ? Number(f.saldo_fgts) : undefined,
         observacaoRescisao: (f.observacao_rescisao as string) || undefined,
+        causaAfastamento: (f.causa_afastamento as string) || undefined,
+        codAfastamento: (f.cod_afastamento as string) || undefined,
+        trctStatus: (f.trct_status as string) || undefined,
+        trctSaldoSalario: f.trct_saldo_salario ? Number(f.trct_saldo_salario) : undefined,
+        trct13Proporcional: f.trct_13_proporcional ? Number(f.trct_13_proporcional) : undefined,
+        trctFeriasProporcionais: f.trct_ferias_proporcionais ? Number(f.trct_ferias_proporcionais) : undefined,
+        trctFeriasVencidas: f.trct_ferias_vencidas ? Number(f.trct_ferias_vencidas) : undefined,
+        trctTercoFerias: f.trct_terco_ferias ? Number(f.trct_terco_ferias) : undefined,
+        trctAvisoIndenizado: f.trct_aviso_indenizado ? Number(f.trct_aviso_indenizado) : undefined,
+        trctMulta477: f.trct_multa_477 ? Number(f.trct_multa_477) : undefined,
+        trctMulta479: f.trct_multa_479 ? Number(f.trct_multa_479) : undefined,
+        trctHorasExtras: f.trct_horas_extras ? Number(f.trct_horas_extras) : undefined,
+        trctTotalBruto: f.trct_total_bruto ? Number(f.trct_total_bruto) : undefined,
+        trctInss: f.trct_inss ? Number(f.trct_inss) : undefined,
+        trctIrrf: f.trct_irrf ? Number(f.trct_irrf) : undefined,
+        trctAdiantamento: f.trct_adiantamento ? Number(f.trct_adiantamento) : undefined,
+        trctPensao: f.trct_pensao ? Number(f.trct_pensao) : undefined,
+        trctTotalDeducoes: f.trct_total_deducoes ? Number(f.trct_total_deducoes) : undefined,
+        trctValorLiquido: f.trct_valor_liquido ? Number(f.trct_valor_liquido) : undefined,
       })))
 
       setOcorrencias((ocData || []).map((o: Record<string, unknown>) => ({
