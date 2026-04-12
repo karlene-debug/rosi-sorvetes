@@ -46,6 +46,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
   const [importResult, setImportResult] = useState<{
     matched: number
     unmatched: { nome: string; cpf: string; funcao: string; salario: number }[]
+    ausentes: { nome: string; id: string }[]
     divergencias: { funcionarioId: string; nomeSistema: string; nomeContabilidade: string; cpf: string }[]
     resumo: FolhaResumo
   } | null>(null)
@@ -189,10 +190,16 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
         }
       }
 
+      // Verificar funcionarios ativos que NAO apareceram no espelho (possivel demissao)
+      const cpfsNoEspelho = new Set(resumo.funcionarios.map(f => normalizeCPF(f.cpf)))
+      const ausentes = funcsAtivos
+        .filter(f => f.cpf && !cpfsNoEspelho.has(normalizeCPF(f.cpf)))
+        .map(f => ({ nome: f.nome, id: f.id }))
+
       // Atualizar mes/ano para o do PDF
       setMes(resumo.mes)
       setAno(resumo.ano)
-      setImportResult({ matched, unmatched, divergencias, resumo })
+      setImportResult({ matched, unmatched, divergencias, ausentes, resumo })
 
       // Recarregar dados do mes importado diretamente
       try {
@@ -371,6 +378,28 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Funcionarios ativos que nao apareceram no espelho */}
+          {importResult.ausentes.length > 0 && (
+            <div className="bg-red-50 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle size={14} className="text-red-500" />
+                <span className="text-xs font-medium text-red-700">
+                  {importResult.ausentes.length} funcionário(s) ativo(s) no sistema não apareceram neste espelho:
+                </span>
+              </div>
+              <p className="text-xs text-red-600 ml-5">
+                Possível desligamento? Verifique e atualize o cadastro se necessário.
+              </p>
+              <div className="flex flex-wrap gap-2 ml-5">
+                {importResult.ausentes.map(a => (
+                  <span key={a.id} className="text-xs bg-white border border-red-200 text-red-700 px-2 py-1 rounded-lg font-medium">
+                    {a.nome}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -474,10 +474,11 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Nome</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cargo</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Unidade</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Admissão</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Contrato</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Salario</th>
+                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Salário</th>
                   <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Acoes</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -489,6 +490,9 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, onAdd, onUp
                     </td>
                     <td className="px-3 py-2.5 text-sm text-gray-600">{f.cargoNome || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-gray-600">{f.unidadeNome || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-gray-500 hidden md:table-cell">
+                      {f.dataAdmissao ? new Date(f.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
+                    </td>
                     <td className="px-3 py-2.5 text-sm text-gray-600">{tipoContratoLabels[f.tipoContrato || ''] || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-right text-green-700 font-medium">
                       {f.salario ? `R$ ${f.salario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
