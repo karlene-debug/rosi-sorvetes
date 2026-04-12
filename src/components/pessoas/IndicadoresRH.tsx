@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Users, TrendingDown, DollarSign, Clock, AlertTriangle, UserPlus, Calendar } from 'lucide-react'
+import { Users, TrendingDown, DollarSign, Clock, AlertTriangle, UserPlus, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { Funcionario, Ocorrencia, Ferias } from './PessoasSection'
@@ -22,25 +22,35 @@ interface FolhaRealData {
 }
 
 const COLORS = ['#E91E63', '#9C27B0', '#2196F3', '#4CAF50', '#FF9800', '#795548', '#607D8B', '#F06292']
+const MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSelecionada }: IndicadoresRHProps) {
+  const now = new Date()
+  const [mesFiltro, setMesFiltro] = useState(now.getMonth() + 1)
+  const [anoFiltro, setAnoFiltro] = useState(now.getFullYear())
   const [folhaReal, setFolhaReal] = useState<FolhaRealData[]>([])
   const [temFolhaReal, setTemFolhaReal] = useState(false)
 
-  // Buscar dados reais da folha do mes atual
-  useEffect(() => {
-    const now = new Date()
-    const mes = now.getMonth() + 1
-    const ano = now.getFullYear()
+  const navegarMes = (dir: -1 | 1) => {
+    setMesFiltro(prev => {
+      let m = prev + dir
+      if (m < 1) { m = 12; setAnoFiltro(a => a - 1) }
+      else if (m > 12) { m = 1; setAnoFiltro(a => a + 1) }
+      return m
+    })
+  }
+
+  // Buscar dados reais da folha do mes selecionado
+  const loadFolha = useCallback(() => {
     supabase
       .from('folha_pagamento')
       .select('funcionario_id, salario_bruto, descontos, encargos_empresa, horas_extras, custo_total')
-      .eq('mes', mes)
-      .eq('ano', ano)
+      .eq('mes', mesFiltro)
+      .eq('ano', anoFiltro)
       .then(({ data }) => {
         if (data && data.length > 0) {
           setFolhaReal(data.map(r => ({
@@ -52,9 +62,14 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
             custoTotal: Number(r.custo_total),
           })))
           setTemFolhaReal(true)
+        } else {
+          setFolhaReal([])
+          setTemFolhaReal(false)
         }
-      }, () => {})
-  }, [])
+      }, () => { setFolhaReal([]); setTemFolhaReal(false) })
+  }, [mesFiltro, anoFiltro])
+
+  useEffect(() => { loadFolha() }, [loadFolha])
 
   const dados = useMemo(() => {
     // Filtrar por unidade se selecionada
@@ -212,6 +227,22 @@ export function IndicadoresRH({ funcionarios, ocorrencias, ferias, unidadeSeleci
 
   return (
     <div className="space-y-6">
+      {/* Filtro de mês/ano */}
+      <div className="flex items-center justify-center gap-4">
+        <button onClick={() => navegarMes(-1)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900">
+          <ChevronLeft size={20} />
+        </button>
+        <div className="text-center min-w-[180px]">
+          <h2 className="text-lg font-bold text-gray-800">{MESES_NOMES[mesFiltro - 1]} {anoFiltro}</h2>
+          <p className="text-xs text-gray-400">
+            {temFolhaReal ? `Folha importada (${folhaReal.length} funcionários)` : 'Folha não importada — valores estimados'}
+          </p>
+        </div>
+        <button onClick={() => navegarMes(1)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900">
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard

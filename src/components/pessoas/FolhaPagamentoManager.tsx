@@ -21,6 +21,12 @@ interface FolhaImportada {
   encargosEmpresa: number
   horasExtras: number
   custoTotal: number
+  descontoINSS: number
+  descontoIRRF: number
+  descontoAdiantamento: number
+  descontoFaltas: number
+  descontoSindicato: number
+  descontoOutros: number
 }
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -47,6 +53,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
     matched: number
     unmatched: { nome: string; cpf: string; funcao: string; salario: number }[]
     ausentes: { nome: string; id: string }[]
+    dadosDivergentes: { funcionarioId: string; nome: string; campo: string; valorSistema: string; valorContabilidade: string }[]
     divergencias: { funcionarioId: string; nomeSistema: string; nomeContabilidade: string; cpf: string }[]
     resumo: FolhaResumo
   } | null>(null)
@@ -85,6 +92,12 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
             encargosEmpresa: Number(r.encargos_empresa),
             horasExtras: Number(r.horas_extras),
             custoTotal: Number(r.custo_total),
+            descontoINSS: Number(r.desconto_inss || 0),
+            descontoIRRF: Number(r.desconto_irrf || 0),
+            descontoAdiantamento: Number(r.desconto_adiantamento || 0),
+            descontoFaltas: Number(r.desconto_faltas || 0),
+            descontoSindicato: Number(r.desconto_sindicato || 0),
+            descontoOutros: Number(r.desconto_outros || 0),
           }
         }))
         setTemDados(true)
@@ -132,6 +145,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
       let matched = 0
       const unmatched: { nome: string; cpf: string; funcao: string; salario: number }[] = []
       const divergencias: { funcionarioId: string; nomeSistema: string; nomeContabilidade: string; cpf: string }[] = []
+      const dadosDivergentes: { funcionarioId: string; nome: string; campo: string; valorSistema: string; valorContabilidade: string }[] = []
 
       for (const funcPDF of resumo.funcionarios) {
         const cpfNorm = normalizeCPF(funcPDF.cpf)
@@ -154,6 +168,26 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
             })
           }
 
+          // Conferir data de admissão
+          if (funcPDF.dataAdmissao && funcSistema.dataAdmissao && funcPDF.dataAdmissao !== funcSistema.dataAdmissao) {
+            dadosDivergentes.push({
+              funcionarioId: funcSistema.id, nome: funcSistema.nome,
+              campo: 'Data de admissão',
+              valorSistema: new Date(funcSistema.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR'),
+              valorContabilidade: new Date(funcPDF.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR'),
+            })
+          }
+
+          // Conferir salário base
+          if (funcPDF.salarioBase > 0 && funcSistema.salario && Math.abs(funcPDF.salarioBase - funcSistema.salario) > 1) {
+            dadosDivergentes.push({
+              funcionarioId: funcSistema.id, nome: funcSistema.nome,
+              campo: 'Salário base',
+              valorSistema: formatCurrency(funcSistema.salario),
+              valorContabilidade: formatCurrency(funcPDF.salarioBase),
+            })
+          }
+
           // Calcular encargos empresa (FGTS + rateio GPS)
           const fgtsFunc = funcPDF.valorFGTS || 0
           const gpsRateio = resumo.gps > 0 && resumo.totalProventos > 0
@@ -162,7 +196,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
           const encargosEmpresa = Math.round((fgtsFunc + gpsRateio) * 100) / 100
           const horasExtras = funcPDF.horasExtras60 + funcPDF.horasExtras100 + funcPDF.dsrExtras + funcPDF.adicionalNoturno
 
-          // Salvar direto no banco
+          // Salvar direto no banco com descontos detalhados
           const row = {
             funcionario_id: funcSistema.id,
             mes: resumo.mes,
@@ -175,6 +209,12 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
             encargos_empresa: encargosEmpresa,
             horas_extras: horasExtras,
             custo_total: funcPDF.totalProventos - funcPDF.totalDescontos + encargosEmpresa,
+            desconto_inss: funcPDF.inssFuncionario,
+            desconto_irrf: funcPDF.irrfFuncionario,
+            desconto_adiantamento: funcPDF.adiantamento,
+            desconto_faltas: funcPDF.faltasDias + funcPDF.faltasHoras,
+            desconto_sindicato: funcPDF.contribuicaoNegocial,
+            desconto_outros: Math.max(0, funcPDF.totalDescontos - funcPDF.inssFuncionario - funcPDF.irrfFuncionario - funcPDF.adiantamento - (funcPDF.faltasDias + funcPDF.faltasHoras) - funcPDF.contribuicaoNegocial),
             observacao: `Importado do espelho ${MESES[resumo.mes - 1]}/${resumo.ano}`,
             atualizado_em: new Date().toISOString(),
           }
@@ -212,7 +252,7 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
       // Atualizar mes/ano para o do PDF
       setMes(resumo.mes)
       setAno(resumo.ano)
-      setImportResult({ matched, unmatched, divergencias, ausentes, resumo })
+      setImportResult({ matched, unmatched, divergencias, ausentes, dadosDivergentes, resumo })
       onReloadFuncionarios?.()
 
       // Recarregar dados do mes importado diretamente
@@ -236,6 +276,12 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
               encargosEmpresa: Number(r.encargos_empresa),
               horasExtras: Number(r.horas_extras),
               custoTotal: Number(r.custo_total),
+              descontoINSS: Number(r.desconto_inss || 0),
+              descontoIRRF: Number(r.desconto_irrf || 0),
+              descontoAdiantamento: Number(r.desconto_adiantamento || 0),
+              descontoFaltas: Number(r.desconto_faltas || 0),
+              descontoSindicato: Number(r.desconto_sindicato || 0),
+              descontoOutros: Number(r.desconto_outros || 0),
             }
           }))
           setTemDados(true)
@@ -461,40 +507,49 @@ export function FolhaPagamentoManager({ funcionarios, unidadeSelecionada, onRelo
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/80">
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-600">Funcionario</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600">Proventos</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600">Descontos</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600 hidden sm:table-cell">Liquido</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600 hidden md:table-cell">Encargos</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600 hidden md:table-cell">Horas ext.</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-[#E91E63]">Custo total</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600 text-xs">Funcionário</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs">Proventos</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden lg:table-cell">INSS</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden lg:table-cell">Adiant.</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden xl:table-cell">Faltas</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden xl:table-cell">Sindicato</th>
+                    <th className="text-right px-2 py-2 font-semibold text-red-500 text-xs">Desc. total</th>
+                    <th className="text-right px-2 py-2 font-semibold text-green-600 text-xs hidden sm:table-cell">Líquido</th>
+                    <th className="text-right px-2 py-2 font-semibold text-gray-600 text-xs hidden md:table-cell">Encargos</th>
+                    <th className="text-right px-2 py-2 font-bold text-[#E91E63] text-xs">Custo total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {folhaItems.sort((a, b) => b.custoTotal - a.custoTotal).map(item => (
                     <tr key={item.funcionarioId} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-2.5">
-                        <span className="font-medium text-gray-800">{item.nome}</span>
+                      <td className="px-3 py-2">
+                        <span className="font-medium text-gray-800 text-xs">{item.nome}</span>
                         {item.cargoNome && <p className="text-[10px] text-gray-400">{item.cargoNome}</p>}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-gray-800">{formatCurrency(item.salarioBruto)}</td>
-                      <td className="px-4 py-2.5 text-right text-red-600">-{formatCurrency(item.descontos)}</td>
-                      <td className="px-4 py-2.5 text-right text-green-700 hidden sm:table-cell">{formatCurrency(item.liquido)}</td>
-                      <td className="px-4 py-2.5 text-right text-gray-500 hidden md:table-cell">{formatCurrency(item.encargosEmpresa)}</td>
-                      <td className="px-4 py-2.5 text-right text-gray-500 hidden md:table-cell">{formatCurrency(item.horasExtras)}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-gray-800">{formatCurrency(item.custoTotal)}</td>
+                      <td className="px-2 py-2 text-right text-xs text-gray-800">{formatCurrency(item.salarioBruto)}</td>
+                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoINSS > 0 ? formatCurrency(item.descontoINSS) : '-'}</td>
+                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden lg:table-cell">{item.descontoAdiantamento > 0 ? formatCurrency(item.descontoAdiantamento) : '-'}</td>
+                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoFaltas > 0 ? formatCurrency(item.descontoFaltas) : '-'}</td>
+                      <td className="px-2 py-2 text-right text-xs text-red-500 hidden xl:table-cell">{item.descontoSindicato > 0 ? formatCurrency(item.descontoSindicato) : '-'}</td>
+                      <td className="px-2 py-2 text-right text-xs text-red-600 font-medium">-{formatCurrency(item.descontos)}</td>
+                      <td className="px-2 py-2 text-right text-xs text-green-700 hidden sm:table-cell">{formatCurrency(item.liquido)}</td>
+                      <td className="px-2 py-2 text-right text-xs text-gray-500 hidden md:table-cell">{formatCurrency(item.encargosEmpresa)}</td>
+                      <td className="px-2 py-2 text-right text-xs font-bold text-gray-800">{formatCurrency(item.custoTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-4 py-2.5 font-bold text-gray-700">Total ({folhaItems.length})</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-gray-800">{formatCurrency(totais.salarioBruto)}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-red-600">-{formatCurrency(totais.descontos)}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-green-700 hidden sm:table-cell">{formatCurrency(totais.liquido)}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-gray-500 hidden md:table-cell">{formatCurrency(totais.encargos)}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-gray-500 hidden md:table-cell">{formatCurrency(totais.horasExtras)}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-[#E91E63]">{formatCurrency(totais.custoTotal)}</td>
+                    <td className="px-3 py-2 font-bold text-gray-700 text-xs">Total ({folhaItems.length})</td>
+                    <td className="px-2 py-2 text-right font-bold text-gray-800 text-xs">{formatCurrency(totais.salarioBruto)}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-500 text-xs hidden lg:table-cell">{formatCurrency(folhaItems.reduce((s, i) => s + i.descontoINSS, 0))}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-500 text-xs hidden lg:table-cell">{formatCurrency(folhaItems.reduce((s, i) => s + i.descontoAdiantamento, 0))}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-500 text-xs hidden xl:table-cell">{formatCurrency(folhaItems.reduce((s, i) => s + i.descontoFaltas, 0))}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-500 text-xs hidden xl:table-cell">{formatCurrency(folhaItems.reduce((s, i) => s + i.descontoSindicato, 0))}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-600 text-xs">-{formatCurrency(totais.descontos)}</td>
+                    <td className="px-2 py-2 text-right font-bold text-green-700 text-xs hidden sm:table-cell">{formatCurrency(totais.liquido)}</td>
+                    <td className="px-2 py-2 text-right font-bold text-gray-500 text-xs hidden md:table-cell">{formatCurrency(totais.encargos)}</td>
+                    <td className="px-2 py-2 text-right font-bold text-[#E91E63] text-xs">{formatCurrency(totais.custoTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
