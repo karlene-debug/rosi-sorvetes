@@ -43,12 +43,26 @@ export interface Funcionario {
   observacao?: string
   // Rescisão
   motivoDemissao?: string
+  motivoDesligamentoId?: string
   tipoDemissao?: string
   avisoPrevio?: string
   multaFgts?: number
   valorRescisao?: number
   saldoFgts?: number
   observacaoRescisao?: string
+  causaAfastamento?: string
+  codAfastamento?: string
+  trctStatus?: string // null, pendente, importado
+  trctTotalBruto?: number
+  trctTotalDeducoes?: number
+  trctValorLiquido?: number
+}
+
+export interface MotivoDesligamento {
+  id: string
+  descricao: string
+  categoria: string
+  status: string
 }
 
 export interface PendenciaRH {
@@ -129,6 +143,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([])
   const [ferias, setFerias] = useState<Ferias[]>([])
   const [pendencias, setPendencias] = useState<PendenciaRH[]>([])
+  const [motivosDesligamento, setMotivosDesligamento] = useState<MotivoDesligamento[]>([])
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
 
@@ -141,6 +156,7 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         { data: ocData, error: oErr },
         feriasResult,
         pendenciasResult,
+        motivosResult,
       ] = await Promise.all([
         supabase.from('cargos').select('*').order('nome'),
         supabase.from('funcionarios').select('*, cargos(nome), unidades(nome)').order('nome'),
@@ -150,6 +166,10 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           () => ({ data: null })
         ),
         supabase.from('pendencias_rh').select('*, funcionarios(nome)').eq('status', 'pendente').order('criado_em', { ascending: false }).then(
+          (r: { data: Record<string, unknown>[] | null }) => r,
+          () => ({ data: null })
+        ),
+        supabase.from('motivos_desligamento').select('*').eq('status', 'ativo').order('descricao').then(
           (r: { data: Record<string, unknown>[] | null }) => r,
           () => ({ data: null })
         ),
@@ -220,6 +240,14 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
         status: p.status as string,
         resposta: (p.resposta as string) || undefined,
         criadoEm: p.criado_em as string,
+      })))
+
+      const mData = motivosResult?.data
+      setMotivosDesligamento((mData || []).map((m: Record<string, unknown>) => ({
+        id: m.id as string,
+        descricao: m.descricao as string,
+        categoria: (m.categoria as string) || 'voluntario',
+        status: m.status as string,
       })))
 
       setConnected(true)
@@ -305,24 +333,24 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
   }
 
   const handleDemitirFuncionario = async (id: string, dataDemissao: string, rescisao?: {
-    tipoDemissao?: string; motivoDemissao?: string; avisoPrevio?: string
-    multaFgts?: number; valorRescisao?: number; saldoFgts?: number; observacaoRescisao?: string
+    tipoDemissao?: string; motivoDesligamentoId?: string; avisoPrevio?: string; observacaoRescisao?: string
   }) => {
-    const updates: Record<string, unknown> = { status: 'inativo', data_demissao: dataDemissao }
+    const updates: Record<string, unknown> = {
+      status: 'inativo',
+      data_demissao: dataDemissao,
+      trct_status: 'pendente', // TRCT fica pendente até importar
+    }
     if (rescisao) {
       if (rescisao.tipoDemissao) updates.tipo_demissao = rescisao.tipoDemissao
-      if (rescisao.motivoDemissao) updates.motivo_demissao = rescisao.motivoDemissao
+      if (rescisao.motivoDesligamentoId) updates.motivo_desligamento_id = rescisao.motivoDesligamentoId
       if (rescisao.avisoPrevio) updates.aviso_previo = rescisao.avisoPrevio
-      if (rescisao.multaFgts) updates.multa_fgts = rescisao.multaFgts
-      if (rescisao.valorRescisao) updates.valor_rescisao = rescisao.valorRescisao
-      if (rescisao.saldoFgts) updates.saldo_fgts = rescisao.saldoFgts
       if (rescisao.observacaoRescisao) updates.observacao_rescisao = rescisao.observacaoRescisao
     }
     const { error } = await supabase.from('funcionarios').update(updates).eq('id', id)
     if (error) throw error
 
     setFuncionarios(prev => prev.map(f => f.id === id ? {
-      ...f, status: 'inativo', dataDemissao, ...rescisao,
+      ...f, status: 'inativo', dataDemissao, trctStatus: 'pendente', ...rescisao,
     } : f))
 
     // Resolver pendências deste funcionário
@@ -338,6 +366,45 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
       .update({ status: 'descartada', resposta: 'Continua ativo', resolvido_em: new Date().toISOString() })
       .eq('id', pendenciaId)
     setPendencias(prev => prev.filter(p => p.id !== pendenciaId))
+  }
+
+  const handleImportTRCT = async (funcionarioId: string, trctData: Record<string, unknown>) => {
+    const updates: Record<string, unknown> = {
+      trct_status: 'importado',
+      trct_importado_em: new Date().toISOString(),
+      causa_afastamento: trctData.causaAfastamento || null,
+      cod_afastamento: trctData.codAfastamento || null,
+      data_aviso_previo: trctData.dataAvisoPrevio || null,
+      remuneracao_mes_anterior: trctData.remuneracaoMesAnterior || null,
+      trct_saldo_salario: trctData.saldoSalario || 0,
+      trct_13_proporcional: trctData.decimoTerceiroProporcional || 0,
+      trct_ferias_proporcionais: trctData.feriasProporcionais || 0,
+      trct_ferias_vencidas: trctData.feriasVencidas || 0,
+      trct_terco_ferias: trctData.tercoFerias || 0,
+      trct_aviso_indenizado: trctData.avisoIndenizado || 0,
+      trct_multa_477: trctData.multa477 || 0,
+      trct_multa_479: trctData.multa479 || 0,
+      trct_horas_extras: trctData.horasExtras || 0,
+      trct_total_bruto: trctData.totalBruto || 0,
+      trct_inss: ((trctData.inss as number) || 0) + ((trctData.inss13 as number) || 0),
+      trct_irrf: ((trctData.irrf as number) || 0) + ((trctData.irrf13 as number) || 0),
+      trct_adiantamento: trctData.adiantamentoSalarial || 0,
+      trct_pensao: trctData.pensaoAlimenticia || 0,
+      trct_total_deducoes: trctData.totalDeducoes || 0,
+      trct_valor_liquido: trctData.valorLiquido || 0,
+      valor_rescisao: trctData.valorLiquido || 0,
+    }
+    await supabase.from('funcionarios').update(updates).eq('id', funcionarioId)
+
+    // Resolver pendencia de TRCT se existir
+    await supabase.from('pendencias_rh')
+      .update({ status: 'resolvida', resposta: 'TRCT importado', resolvido_em: new Date().toISOString() })
+      .eq('funcionario_id', funcionarioId)
+      .eq('tipo', 'trct_pendente')
+      .eq('status', 'pendente')
+
+    // Recarregar dados
+    loadData()
   }
 
   const handleAddOcorrencia = async (o: Omit<Ocorrencia, 'id' | 'funcionarioNome'>) => {
@@ -540,10 +607,12 @@ export function PessoasSection({ unidades, unidadeSelecionada }: PessoasSectionP
           cargos={cargos}
           unidades={unidades}
           pendencias={pendencias}
+          motivosDesligamento={motivosDesligamento}
           onAdd={handleAddFuncionario}
           onUpdate={handleUpdateFuncionario}
           onDemitir={handleDemitirFuncionario}
           onDescartarPendencia={handleDescartarPendencia}
+          onImportTRCT={handleImportTRCT}
         />
       )}
       {activeTab === 'folha' && (

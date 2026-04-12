@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp } from 'lucide-react'
+import { UserPlus, Users, Phone, CheckCircle, Gift, ChevronDown, Pencil, UserX, DollarSign, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Cargo, Funcionario, Beneficio, PendenciaRH } from './PessoasSection'
+import type { Cargo, Funcionario, Beneficio, PendenciaRH, MotivoDesligamento } from './PessoasSection'
+import { parseTRCTPDF } from '@/lib/trctParser'
 import type { Unidade } from '@/data/productTypes'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/Modal'
@@ -65,16 +66,17 @@ interface FuncionarioManagerProps {
   cargos: Cargo[]
   unidades: Unidade[]
   pendencias?: PendenciaRH[]
+  motivosDesligamento?: MotivoDesligamento[]
   onAdd: (f: Omit<Funcionario, 'id' | 'cargoNome' | 'unidadeNome'>) => Promise<void>
   onUpdate?: (id: string, f: Partial<Funcionario>) => Promise<void>
   onDemitir?: (id: string, dataDemissao: string, rescisao?: {
-    tipoDemissao?: string; motivoDemissao?: string; avisoPrevio?: string
-    multaFgts?: number; valorRescisao?: number; saldoFgts?: number; observacaoRescisao?: string
+    tipoDemissao?: string; motivoDesligamentoId?: string; avisoPrevio?: string; observacaoRescisao?: string
   }) => Promise<void>
   onDescartarPendencia?: (id: string) => Promise<void>
+  onImportTRCT?: (funcionarioId: string, trctData: Record<string, unknown>) => Promise<void>
 }
 
-export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias = [], onAdd, onUpdate, onDemitir, onDescartarPendencia }: FuncionarioManagerProps) {
+export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias = [], motivosDesligamento = [], onAdd, onUpdate, onDemitir, onDescartarPendencia, onImportTRCT }: FuncionarioManagerProps) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -84,13 +86,16 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
   const [demitindoId, setDemitindoId] = useState<string | null>(null)
   const [dataDemissao, setDataDemissão] = useState('')
   const [rescisaoForm, setRescisaoForm] = useState({
-    tipoDemissao: 'sem_justa_causa', motivoDemissao: '', avisoPrevio: 'indenizado',
-    multaFgts: '', valorRescisao: '', saldoFgts: '', observacaoRescisao: '',
+    tipoDemissao: 'sem_justa_causa', motivoDesligamentoId: '', avisoPrevio: 'indenizado',
+    observacaoRescisao: '',
   })
+  const [importingTRCT, setImportingTRCT] = useState<string | null>(null) // funcionarioId
   const [reajusteId, setReajusteId] = useState<string | null>(null)
   const [reajusteForm, setReajusteForm] = useState({ salarioNovo: '', motivo: '', registradoPor: '' })
   const [funcBenefícios, setFuncBenefícios] = useState<Record<string, Beneficio[]>>({})
   const [funcHistorico, setFuncHistorico] = useState<Record<string, HistoricoSalarial[]>>({})
+  const [sortField, setSortField] = useState<'nome' | 'cargo' | 'unidade' | 'admissao' | 'contrato' | 'salario' | 'status'>('nome')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [form, setForm] = useState({
     nome: '',
     cpf: '',
@@ -202,16 +207,13 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
     try {
       await onDemitir(demitindoId, dataDemissao, {
         tipoDemissao: rescisaoForm.tipoDemissao || undefined,
-        motivoDemissao: rescisaoForm.motivoDemissao || undefined,
+        motivoDesligamentoId: rescisaoForm.motivoDesligamentoId || undefined,
         avisoPrevio: rescisaoForm.avisoPrevio || undefined,
-        multaFgts: rescisaoForm.multaFgts ? parseFloat(rescisaoForm.multaFgts) : undefined,
-        valorRescisao: rescisaoForm.valorRescisao ? parseFloat(rescisaoForm.valorRescisao) : undefined,
-        saldoFgts: rescisaoForm.saldoFgts ? parseFloat(rescisaoForm.saldoFgts) : undefined,
         observacaoRescisao: rescisaoForm.observacaoRescisao || undefined,
       })
       setDemitindoId(null)
       setDataDemissão('')
-      setRescisaoForm({ tipoDemissao: 'sem_justa_causa', motivoDemissao: '', avisoPrevio: 'indenizado', multaFgts: '', valorRescisao: '', saldoFgts: '', observacaoRescisao: '' })
+      setRescisaoForm({ tipoDemissao: 'sem_justa_causa', motivoDesligamentoId: '', avisoPrevio: 'indenizado', observacaoRescisao: '' })
       setSuccessMsg('Funcionário demitido. Status alterado para inativo.')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
@@ -322,6 +324,29 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
 
   const ativos = funcionarios.filter(f => f.status === 'ativo')
   const beneficioLabel = (tipo: string) => beneficioTipos.find(b => b.tipo === tipo)?.label || tipo
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={12} className="text-gray-300" />
+    return sortDir === 'asc' ? <ArrowUp size={12} className="text-[#E91E63]" /> : <ArrowDown size={12} className="text-[#E91E63]" />
+  }
+
+  const sortedFuncionarios = [...funcionarios].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    switch (sortField) {
+      case 'nome': return a.nome.localeCompare(b.nome) * dir
+      case 'cargo': return (a.cargoNome || '').localeCompare(b.cargoNome || '') * dir
+      case 'unidade': return (a.unidadeNome || '').localeCompare(b.unidadeNome || '') * dir
+      case 'admissao': return (a.dataAdmissao || '').localeCompare(b.dataAdmissao || '') * dir
+      case 'contrato': return (a.tipoContrato || '').localeCompare(b.tipoContrato || '') * dir
+      case 'salario': return ((a.salario || 0) - (b.salario || 0)) * dir
+      case 'status': return a.status.localeCompare(b.status) * dir
+      default: return 0
+    }
+  })
 
   return (
     <div className="space-y-4">
@@ -543,18 +568,18 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Nome</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cargo</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Unidade</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Admissão</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Contrato</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Salário</th>
-                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('nome')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Nome <SortIcon field="nome" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('cargo')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Cargo <SortIcon field="cargo" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('unidade')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Unidade <SortIcon field="unidade" /></button></th>
+                  <th className="text-left px-3 py-2.5 hidden md:table-cell"><button onClick={() => toggleSort('admissao')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Admissão <SortIcon field="admissao" /></button></th>
+                  <th className="text-left px-3 py-2.5"><button onClick={() => toggleSort('contrato')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800">Contrato <SortIcon field="contrato" /></button></th>
+                  <th className="text-right px-3 py-2.5"><button onClick={() => toggleSort('salario')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800 ml-auto">Salário <SortIcon field="salario" /></button></th>
+                  <th className="text-center px-3 py-2.5"><button onClick={() => toggleSort('status')} className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-800 mx-auto">Status <SortIcon field="status" /></button></th>
                   <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {funcionarios.map(f => (
+                {sortedFuncionarios.map(f => (
                   <tr key={f.id} className={cn('hover:bg-gray-50/50', f.status !== 'ativo' && 'opacity-60')}>
                     <td className="px-3 py-2.5">
                       <div className="font-medium text-sm text-gray-800">{f.nome}</div>
@@ -592,8 +617,15 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
                         )}
                         {f.status === 'ativo' && onDemitir && (
                           <button onClick={() => { setDemitindoId(f.id); setDataDemissão(new Date().toISOString().split('T')[0]) }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Demitir">
+                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Desligar">
                             <UserX size={14} />
+                          </button>
+                        )}
+                        {f.status === 'inativo' && f.trctStatus === 'pendente' && onImportTRCT && (
+                          <button onClick={() => setImportingTRCT(f.id)}
+                            className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium hover:bg-amber-200"
+                            title="Importar TRCT">
+                            TRCT
                           </button>
                         )}
                       </div>
@@ -706,11 +738,14 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
         </div>
       </Modal>
 
-      {/* Modal Demitir / Rescisão */}
+      {/* Modal Desligamento (etapa 1 - sem valores financeiros) */}
       <Modal open={!!demitindoId} onClose={() => { setDemitindoId(null); setDataDemissão('') }}
-        title="Desligamento e Rescisão"
-        subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="lg">
+        title="Registrar Desligamento"
+        subtitle={funcionarios.find(fn => fn.id === demitindoId)?.nome || ''} size="md">
         <div className="space-y-4">
+          <p className="text-xs text-gray-500 bg-blue-50 rounded-lg p-3">
+            Registre o desligamento agora. Os valores financeiros (rescisão, multa FGTS) serão importados quando a contabilidade enviar o TRCT.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Data de desligamento *</label>
@@ -735,46 +770,22 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Motivo</label>
-              <input type="text" value={rescisaoForm.motivoDemissao}
-                onChange={e => setRescisaoForm({ ...rescisaoForm, motivoDemissao: e.target.value })}
-                placeholder="Ex: Término de contrato"
-                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Motivo do desligamento</label>
+              <select value={rescisaoForm.motivoDesligamentoId}
+                onChange={e => setRescisaoForm({ ...rescisaoForm, motivoDesligamentoId: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400">
+                <option value="">Selecione...</option>
+                {motivosDesligamento.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+              </select>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Valor rescisão (R$)</label>
-              <input type="number" step="0.01" value={rescisaoForm.valorRescisao}
-                onChange={e => setRescisaoForm({ ...rescisaoForm, valorRescisao: e.target.value })}
-                placeholder="0,00"
-                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Multa FGTS (R$)</label>
-              <input type="number" step="0.01" value={rescisaoForm.multaFgts}
-                onChange={e => setRescisaoForm({ ...rescisaoForm, multaFgts: e.target.value })}
-                placeholder="0,00"
-                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Saldo FGTS (R$)</label>
-              <input type="number" step="0.01" value={rescisaoForm.saldoFgts}
-                onChange={e => setRescisaoForm({ ...rescisaoForm, saldoFgts: e.target.value })}
-                placeholder="0,00"
-                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
             <textarea value={rescisaoForm.observacaoRescisao}
               onChange={e => setRescisaoForm({ ...rescisaoForm, observacaoRescisao: e.target.value })}
-              rows={2} placeholder="Informações adicionais sobre o desligamento..."
+              rows={2} placeholder="Informações adicionais..."
               className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-400" />
           </div>
-
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
             <button onClick={() => { setDemitindoId(null); setDataDemissão('') }}
               className="px-4 py-2 text-sm text-gray-500">Cancelar</button>
@@ -783,6 +794,41 @@ export function FuncionarioManager({ funcionarios, cargos, unidades, pendencias 
               {saving ? 'Processando...' : 'Confirmar Desligamento'}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal Importar TRCT (etapa 2) */}
+      <Modal open={!!importingTRCT} onClose={() => setImportingTRCT(null)}
+        title="Importar TRCT"
+        subtitle={funcionarios.find(fn => fn.id === importingTRCT)?.nome || ''} size="sm">
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-600">
+            Importe o PDF do Termo de Rescisão (TRCT) enviado pela contabilidade.
+          </p>
+          <label className="inline-flex items-center gap-2 px-6 py-3 bg-[#E91E63] text-white rounded-xl cursor-pointer text-sm font-medium hover:bg-[#C2185B]">
+            <Upload size={18} />
+            Selecionar PDF do TRCT
+            <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file || !importingTRCT || !onImportTRCT) return
+              setSaving(true)
+              try {
+                const trctData = await parseTRCTPDF(file)
+                await onImportTRCT(importingTRCT, trctData as unknown as Record<string, unknown>)
+                setImportingTRCT(null)
+                setSuccessMsg('TRCT importado com sucesso! Valores de rescisão atualizados.')
+                setShowSuccess(true)
+                setTimeout(() => setShowSuccess(false), 4000)
+              } catch (err) {
+                setSuccessMsg(err instanceof Error ? err.message : 'Erro ao processar TRCT')
+                setShowSuccess(true)
+                setTimeout(() => setShowSuccess(false), 4000)
+              } finally {
+                setSaving(false)
+              }
+            }} />
+          </label>
+          <p className="text-xs text-gray-400">Formato: PDF do TRCT padrão MTE</p>
         </div>
       </Modal>
     </div>
